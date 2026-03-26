@@ -1,0 +1,3245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>肉鸽王者 - Roguelike King</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+            border: 8px solid #ffd700;
+            box-sizing: border-box;
+            box-shadow: inset 0 0 50px rgba(255, 215, 0, 0.3);
+        }
+
+        #game-canvas {
+            display: block;
+            background: #0a0a1a;
+        }
+
+        /* 游戏UI层 */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* 左上角玩家信息 */
+        #player-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffd700;
+            border-radius: 15px;
+            padding: 15px 20px;
+            min-width: 280px;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        #player-info h2 {
+            color: #ffd700;
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .stat-bar {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+
+        .stat-bar label {
+            width: 60px;
+            font-size: 14px;
+        }
+
+        .bar-container {
+            flex: 1;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #555;
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        #hp-fill {
+            background: linear-gradient(90deg, #ff4444 0%, #ff6666 100%);
+        }
+
+        #exp-fill {
+            background: linear-gradient(90deg, #4444ff 0%, #6666ff 100%);
+        }
+
+        .bar-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 16px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .hp-display {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 8px;
+            margin-bottom: 8px;
+            text-align: center;
+            padding: 8px;
+            background: rgba(255, 68, 68, 0.1);
+            border-radius: 8px;
+            border-left: 3px solid #ff4444;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        .stat-item {
+            background: rgba(255, 215, 0, 0.1);
+            padding: 5px 10px;
+            border-radius: 5px;
+            border-left: 3px solid #ffd700;
+        }
+
+        /* 右上角装备和技能 */
+        #equipment-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffd700;
+            border-radius: 15px;
+            padding: 15px;
+            width: 320px;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        #equipment-panel h3 {
+            color: #ffd700;
+            font-size: 18px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .equipment-slots {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .equipment-slot {
+            aspect-ratio: 1;
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid #666;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .equipment-slot:hover {
+            border-color: #ffd700;
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .equipment-slot.equipped {
+            border-color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        .equipment-slot .slot-label {
+            position: absolute;
+            bottom: 2px;
+            font-size: 10px;
+            color: #888;
+        }
+
+        .equipment-slot .equipment-icon {
+            font-size: 28px;
+        }
+
+        .equipment-slot .rarity-indicator {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
+        }
+
+        /* 装备提示框 */
+        #equipment-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #ffd700;
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 200px;
+            max-width: 300px;
+            z-index: 2000;
+            display: none;
+            pointer-events: none;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        #equipment-tooltip .tooltip-title {
+            color: #ffd700;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        #equipment-tooltip .tooltip-rarity {
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 10px;
+            padding: 3px 10px;
+            border-radius: 5px;
+        }
+
+        #equipment-tooltip .tooltip-stats {
+            margin-bottom: 10px;
+            line-height: 1.8;
+        }
+
+        #equipment-tooltip .tooltip-stats .stat-line {
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        #equipment-tooltip .tooltip-stats .stat-value {
+            color: #00ff00;
+            margin-left: 5px;
+        }
+
+        #equipment-tooltip .tooltip-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tooltip-btn {
+            flex: 1;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .tooltip-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-equip {
+            background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+            color: #000;
+        }
+
+        .btn-unequip {
+            background: linear-gradient(135deg, #ff8800 0%, #ff6600 100%);
+            color: #fff;
+        }
+
+        .btn-sell {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            color: #fff;
+        }
+
+        .skills-container {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .skill-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid #666;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .skill-slot .skill-key {
+            position: absolute;
+            bottom: 2px;
+            font-size: 10px;
+            color: #fff;
+        }
+
+        .skill-slot.on-cooldown {
+            opacity: 0.5;
+        }
+
+        .skill-slot .cooldown-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            transition: height 0.1s linear;
+        }
+
+        /* 底部地图信息 */
+        #map-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffd700;
+            border-radius: 15px;
+            padding: 12px 25px;
+            pointer-events: auto;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .map-stat {
+            text-align: center;
+        }
+
+        .map-stat .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .map-stat .label {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        /* 天赋选择模态框 */
+        #talent-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        #talent-modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 3px solid #ffd700;
+            border-radius: 20px;
+            padding: 30px 40px;
+            max-width: 900px;
+            width: 90%;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
+            animation: modalAppear 0.3s ease;
+        }
+
+        @keyframes modalAppear {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal-title {
+            text-align: center;
+            color: #ffd700;
+            font-size: 32px;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .talent-cards {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .talent-card {
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid #666;
+            border-radius: 15px;
+            padding: 20px;
+            width: 260px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .talent-card:hover {
+            border-color: #ffd700;
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+        }
+
+        .talent-card .talent-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .talent-card .talent-name {
+            color: #ffd700;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .talent-card .talent-desc {
+            color: #ccc;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .talent-card .talent-stats {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #444;
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .refresh-button {
+            margin: 30px auto 0;
+            display: block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .refresh-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .refresh-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 装备掉落通知 */
+        #loot-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #ffd700;
+            border-radius: 15px;
+            padding: 30px 50px;
+            text-align: center;
+            z-index: 1000;
+            display: none;
+            pointer-events: auto;
+            animation: lootAppear 0.5s ease;
+        }
+
+        @keyframes lootAppear {
+            from {
+                transform: translate(-50%, -50%) scale(0.5);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        #loot-notification.active {
+            display: block;
+        }
+
+        #loot-notification .loot-title {
+            color: #ffd700;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        #loot-notification .loot-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+
+        #loot-notification .loot-name {
+            color: #ff4444;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        #loot-notification .loot-stats {
+            color: #ccc;
+            font-size: 16px;
+            margin-bottom: 20px;
+            line-height: 1.8;
+        }
+
+        #loot-notification .loot-btn {
+            background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #000;
+            transition: all 0.3s;
+        }
+
+        #loot-notification .loot-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(255, 215, 0, 0.5);
+        }
+
+        /* 伤害数字 */
+        .damage-number {
+            position: absolute;
+            font-weight: bold;
+            text-shadow: 2px 2px 2px #000;
+            pointer-events: none;
+            animation: damageFloat 1s ease-out forwards;
+        }
+
+        .damage-player {
+            color: #ff4444;
+            font-size: 24px;
+        }
+
+        .damage-critical {
+            color: #ff8800;
+            font-size: 32px;
+        }
+
+        .damage-enemy {
+            color: #44ff44;
+            font-size: 20px;
+        }
+
+        .damage-heal {
+            color: #44ffff;
+            font-size: 20px;
+        }
+
+        @keyframes damageFloat {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: translateY(-50px) scale(1.2);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translateY(-100px) scale(1);
+                opacity: 0;
+            }
+        }
+
+        /* 游戏结束屏幕 */
+        #game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        #game-over.active {
+            display: flex;
+        }
+
+        .game-over-content {
+            text-align: center;
+            animation: gameOverAppear 0.5s ease;
+        }
+
+        @keyframes gameOverAppear {
+            from {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .game-over-title {
+            font-size: 64px;
+            color: #ff4444;
+            margin-bottom: 30px;
+            text-shadow: 3px 3px 6px #000;
+        }
+
+        .game-over-stats {
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid #666;
+            border-radius: 15px;
+            padding: 30px 50px;
+            margin-bottom: 30px;
+            display: inline-block;
+        }
+
+        .game-over-stats .stat-row {
+            margin: 15px 0;
+            font-size: 18px;
+            color: #ccc;
+        }
+
+        .game-over-stats .stat-row .stat-value {
+            color: #ffd700;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #ff4444 0%, #ff6666 100%);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            color: #fff;
+            transition: all 0.3s;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 30px rgba(255, 68, 68, 0.5);
+        }
+
+        /* 控制说明 */
+        #controls-info {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 10px 15px;
+            font-size: 12px;
+            color: #888;
+            pointer-events: auto;
+        }
+
+        #controls-info kbd {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            margin-right: 5px;
+        }
+
+        /* 小地图 */
+        #minimap {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffd700;
+            border-radius: 10px;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 仓库模态框 */
+        #inventory-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        #inventory-modal.active {
+            display: flex;
+        }
+
+        .inventory-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 3px solid #ffd700;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .inventory-title {
+            text-align: center;
+            color: #ffd700;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+        }
+
+        .inventory-slot {
+            aspect-ratio: 1;
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid #666;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .inventory-slot:hover {
+            border-color: #ffd700;
+            transform: scale(1.05);
+        }
+
+        .inventory-slot .item-quantity {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 12px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: #ff4444;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 18px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+        }
+
+        /* 危险警告 */
+        .danger-warning {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 0 0 20px #ff0000;
+            opacity: 0;
+            pointer-events: none;
+            animation: warningPulse 0.5s ease-out;
+        }
+
+        @keyframes warningPulse {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- UI层 -->
+        <div id="ui-layer">
+            <!-- 玩家信息 -->
+            <div id="player-info">
+                <h2>🎮 冒险者 Lv.<span id="player-level">1</span></h2>
+                <div class="stat-bar">
+                    <label>生命</label>
+                    <div class="bar-container">
+                        <div class="bar-fill" id="hp-fill" style="width: 100%"></div>
+                        <span class="bar-text"><span id="current-hp">100</span> / <span id="max-hp">100</span></span>
+                    </div>
+                </div>
+                <div class="hp-display">
+                    生命值: <span id="hp-detailed" style="color: #ff4444; font-weight: bold;">100 / 100</span>
+                </div>
+                <div class="stat-bar">
+                    <label>经验</label>
+                    <div class="bar-container">
+                        <div class="bar-fill" id="exp-fill" style="width: 0%"></div>
+                        <span class="bar-text"><span id="current-exp">0</span> / <span id="max-exp">100</span></span>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">⚔️ 攻击: <span id="player-atk">20</span></div>
+                    <div class="stat-item">🛡️ 防御: <span id="player-def">5</span></div>
+                    <div class="stat-item">💨 速度: <span id="player-spd">3</span></div>
+                    <div class="stat-item">💰 金币: <span id="player-gold">0</span></div>
+                </div>
+            </div>
+
+            <!-- 装备和技能面板 -->
+            <div id="equipment-panel">
+                <h3>🎒 装备与技能</h3>
+                <div class="equipment-slots">
+                    <div class="equipment-slot" id="weapon-slot" data-slot="weapon" data-key="1">
+                        <span class="equipment-icon">🗡️</span>
+                        <span class="slot-label">武器 (1)</span>
+                    </div>
+                    <div class="equipment-slot" id="armor-slot" data-slot="armor" data-key="2">
+                        <span class="equipment-icon">🛡️</span>
+                        <span class="slot-label">护甲 (2)</span>
+                    </div>
+                    <div class="equipment-slot" id="helmet-slot" data-slot="helmet" data-key="3">
+                        <span class="equipment-icon">👑</span>
+                        <span class="slot-label">头盔 (3)</span>
+                    </div>
+                    <div class="equipment-slot" id="necklace-slot" data-slot="necklace" data-key="4">
+                        <span class="equipment-icon">📿</span>
+                        <span class="slot-label">项链 (4)</span>
+                    </div>
+                    <div class="equipment-slot" id="ring-slot" data-slot="ring" data-key="5">
+                        <span class="equipment-icon">💍</span>
+                        <span class="slot-label">戒指 (5)</span>
+                    </div>
+                    <div class="equipment-slot" id="boots-slot" data-slot="boots" data-key="6">
+                        <span class="equipment-icon">👢</span>
+                        <span class="slot-label">鞋子 (6)</span>
+                    </div>
+                </div>
+                <div class="skills-container">
+                    <div class="skill-slot" id="skill-1">
+                        🔥
+                        <span class="skill-key">Q</span>
+                    </div>
+                    <div class="skill-slot" id="skill-2">
+                        ⚡
+                        <span class="skill-key">F</span>
+                    </div>
+                    <div class="skill-slot" id="skill-3">
+                        💚
+                        <span class="skill-key">E</span>
+                    </div>
+                    <div class="skill-slot" id="skill-4">
+                        🌟
+                        <span class="skill-key">R</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部地图信息 -->
+            <div id="map-info">
+                <div class="map-stat">
+                    <div class="value" id="floor-number">1</div>
+                    <div class="label">层数</div>
+                </div>
+                <div class="map-stat">
+                    <div class="value" id="kill-count">0</div>
+                    <div class="label">击杀</div>
+                </div>
+                <div class="map-stat">
+                    <div class="value" id="time-elapsed">00:00</div>
+                    <div class="label">时间</div>
+                </div>
+                <div class="map-stat">
+                    <div class="value" id="highest-floor">1</div>
+                    <div class="label">最高层</div>
+                </div>
+            </div>
+
+            <!-- 小地图 -->
+            <div id="minimap">
+                <canvas id="minimap-canvas"></canvas>
+            </div>
+
+            <!-- 控制说明 -->
+            <div id="controls-info">
+                <kbd>WASD</kbd>移动 <kbd>鼠标</kbd>攻击 <kbd>Q</kbd>烈焰斩<br>
+                <kbd>F</kbd>闪电突 <kbd>E</kbd>治疗 <kbd>R</kbd>狂暴<br>
+                <kbd>I</kbd>仓库 <kbd>1-6</kbd>装备/卸下
+            </div>
+        </div>
+
+        <!-- 装备提示框 -->
+        <div id="equipment-tooltip">
+            <div class="tooltip-title" id="tooltip-title">装备名称</div>
+            <div class="tooltip-rarity" id="tooltip-rarity">传说</div>
+            <div class="tooltip-stats" id="tooltip-stats"></div>
+            <div class="tooltip-actions" id="tooltip-actions"></div>
+        </div>
+
+        <!-- 仓库模态框 -->
+        <div id="inventory-modal">
+            <div class="inventory-content">
+                <button class="close-btn" onclick="closeInventory()">×</button>
+                <div class="inventory-title">🎒 仓库</div>
+                <div class="inventory-grid" id="inventory-grid"></div>
+            </div>
+        </div>
+
+        <!-- 天赋选择模态框 -->
+        <div id="talent-modal">
+            <div class="modal-content">
+                <div class="modal-title">🎉 升级！选择一个天赋</div>
+                <div class="talent-cards" id="talent-cards-container">
+                </div>
+            </div>
+        </div>
+
+        <!-- 装备掉落通知 -->
+        <div id="loot-notification">
+            <div class="loot-title">✨ 获得装备！</div>
+            <div class="loot-icon" id="loot-icon">⚔️</div>
+            <div class="loot-name" id="loot-name">传说之剑</div>
+            <div class="loot-stats" id="loot-stats">
+                攻击力: +50<br>
+                攻击速度: +20%<br>
+                独特特性: 攻击时有10%几率造成双倍伤害
+            </div>
+            <button class="loot-btn" onclick="closeLootNotification()">装备</button>
+        </div>
+
+        <!-- 游戏结束屏幕 -->
+        <div id="game-over">
+            <div class="game-over-content">
+                <div class="game-over-title">💀 游戏结束</div>
+                <div class="game-over-stats">
+                    <div class="stat-row">最高层数: <span class="stat-value" id="final-floor">1</span></div>
+                    <div class="stat-row">总击杀数: <span class="stat-value" id="final-kills">0</span></div>
+                    <div class="stat-row">获得金币: <span class="stat-value" id="final-gold">0</span></div>
+                    <div class="stat-row">总时间: <span class="stat-value" id="final-time">00:00</span></div>
+                </div>
+                <button class="restart-btn" onclick="restartGame()">重新开始</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 游戏主类
+        class RoguelikeGame {
+            constructor() {
+                this.canvas = document.getElementById('game-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.minimapCanvas = document.getElementById('minimap-canvas');
+                this.minimapCtx = this.minimapCanvas.getContext('2d');
+                
+                // 设置画布大小
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // 游戏状态
+                this.gameState = 'playing'; // playing, paused, game_over, talent_selection
+                this.lastTime = 0;
+                this.deltaTime = 0;
+                
+                // 天赋刷新系统
+                this.talentRefreshCount = 0; // 每次升级可刷新一次
+                this.currentTalentOptions = []; // 当前可选天赋
+                
+                // 地图配置
+                this.mapWidth = 2000;
+                this.mapHeight = 2000;
+                this.tileSize = 50;
+                
+                // 玩家初始化
+                this.player = {
+                    x: this.mapWidth / 2,
+                    y: this.mapHeight / 2,
+                    width: 40,
+                    height: 40,
+                    vx: 0,
+                    vy: 0,
+                    speed: 250,
+                    maxSpeed: 250,
+                    hp: 100,
+                    maxHp: 100,
+                    exp: 0,
+                    expToLevel: 100,
+                    level: 1,
+                    attack: 20,
+                    defense: 5,
+                    criticalRate: 0.1,
+                    criticalMultiplier: 1.5,
+                    attackSpeed: 1,
+                    gold: 0,
+                    talents: [],
+                    skills: {
+                        skill1: { name: '烈焰斩', damage: 30, cooldown: 2, currentCooldown: 0, icon: '🔥' },
+                        skill2: { name: '闪电突', damage: 25, cooldown: 3, currentCooldown: 0, icon: '⚡' },
+                        skill3: { name: '治疗术', healing: 40, cooldown: 5, currentCooldown: 0, icon: '💚' },
+                        skill4: { name: '狂暴', buff: 1.5, duration: 5, cooldown: 10, currentCooldown: 0, icon: '🌟', active: false }
+                    },
+                    equipment: {
+                        weapon: null,
+                        armor: null,
+                        helmet: null,
+                        necklace: null,
+                        ring: null,
+                        boots: null
+                    },
+                    inventory: [],
+                    baseStats: {
+                        attack: 20,
+                        defense: 5,
+                        speed: 250,
+                        criticalRate: 0.1
+                    },
+                    // 动画相关
+                    animationFrame: 0,
+                    animationState: 'idle', // idle, run, attack, hurt
+                    facingRight: true,
+                    lastAttackTime: 0,
+                    attackAnimationTime: 0.3
+                };
+                
+                // 敌人数组
+                this.enemies = [];
+                this.enemyKillCount = 0;
+                
+                // 投射物数组
+                this.projectiles = [];
+                
+                // 伤害数字数组
+                this.damageNumbers = [];
+                
+                // 地图层数
+                this.floorNumber = 1;
+                this.highestFloor = 1;
+                this.isTransitioning = false;
+                
+                // 游戏时间
+                this.gameStartTime = Date.now();
+                this.elapsedTime = 0;
+                
+                // 键盘状态
+                this.keys = {};
+                
+                // 鼠标状态
+                this.mouse = { x: 0, y: 0, isDown: false, lastClickTime: 0 };
+                
+                // 装备数据库
+                this.equipmentDatabase = this.initEquipmentDatabase();
+                
+                // 天赋数据库
+                this.talentDatabase = this.initTalentDatabase();
+                
+                // 初始化
+                this.init();
+            }
+            
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.minimapCanvas.width = 150;
+                this.minimapCanvas.height = 150;
+            }
+            
+            initEquipmentDatabase() {
+                return {
+                    weapons: [
+                        // 普通武器 (基础伤害5-12)
+                        { name: '新手剑', icon: '🗡️', attack: 5, rarity: 'common' },
+                        { name: '铁剑', icon: '⚔️', attack: 7, rarity: 'common' },
+                        { name: '木棒', icon: '🔨', attack: 6, rarity: 'common' },
+                        { name: '短刀', icon: '🔪', attack: 8, criticalRate: 0.03, rarity: 'common' },
+                        { name: '石斧', icon: '🪓', attack: 9, attackSpeed: 0.05, rarity: 'common' },
+                        { name: '长矛', icon: '🔱', attack: 10, rangeBonus: 10, rarity: 'common' },
+                        { name: '铁锤', icon: '🔨', attack: 11, criticalMultiplier: 0.1, rarity: 'common' },
+                        { name: '钢剑', icon: '⚔️', attack: 12, criticalRate: 0.02, rarity: 'common' },
+                        
+                        // 优秀武器 (伤害13-20 + 特殊属性)
+                        { name: '银剑', icon: '🗡️', attack: 15, attackSpeed: 0.1, rarity: 'uncommon' },
+                        { name: '精钢剑', icon: '⚔️', attack: 16, criticalRate: 0.05, rarity: 'uncommon' },
+                        { name: '黑铁刀', icon: '🗡️', attack: 14, lifeSteal: 0.05, rarity: 'uncommon' },
+                        { name: '雷鸣斧', icon: '🪓', attack: 17, damageMultiplier: 0.05, rarity: 'uncommon' },
+                        { name: '风暴剑', icon: '⚔️', attack: 18, criticalRate: 0.06, speed: 15, rarity: 'uncommon' },
+                        { name: '烈焰剑', icon: '🔥', attack: 19, damageMultiplier: 0.08, rarity: 'uncommon' },
+                        { name: '寒冰剑', icon: '❄️', attack: 20, attackSpeed: 0.12, rarity: 'uncommon' },
+                        
+                        // 稀有武器 (伤害22-35 + 强力组合属性)
+                        { name: '黄金剑', icon: '⚔️', attack: 22, criticalRate: 0.08, rarity: 'rare' },
+                        { name: '精灵之弓', icon: '🏹', attack: 24, criticalRate: 0.1, speed: 25, rarity: 'rare' },
+                        { name: '吸血鬼之牙', icon: '🦷', attack: 21, lifeSteal: 0.15, rarity: 'rare' },
+                        { name: '雷霆之锤', icon: '⚡', attack: 26, damageMultiplier: 0.1, criticalRate: 0.07, rarity: 'rare' },
+                        { name: '龙骨剑', icon: '🦴', attack: 28, attackSpeed: 0.15, criticalMultiplier: 0.15, rarity: 'rare' },
+                        { name: '精灵之刃', icon: '🧝', attack: 30, criticalRate: 0.12, attackSpeed: 0.1, rarity: 'rare' },
+                        { name: '战神之斧', icon: '🪓', attack: 35, damageMultiplier: 0.12, speed: 20, rarity: 'rare' },
+                        
+                        // 史诗武器 (伤害38-50 + 多重高级属性)
+                        { name: '龙血剑', icon: '🗡️', attack: 38, criticalRate: 0.12, lifeSteal: 0.12, rarity: 'epic' },
+                        { name: '炎魔之刃', icon: '🔥', attack: 40, damageMultiplier: 0.15, criticalRate: 0.1, rarity: 'epic' },
+                        { name: '霜巨人战斧', icon: '❄️', attack: 42, attackSpeed: 0.2, defense: 5, rarity: 'epic' },
+                        { name: '死神镰刀', icon: '💀', attack: 44, lifeSteal: 0.2, criticalMultiplier: 0.25, rarity: 'epic' },
+                        { name: '天使之剑', icon: '👼', attack: 46, attack: 46, criticalRate: 0.15, healingBonus: 0.1, rarity: 'epic' },
+                        { name: '地狱火剑', icon: '🔥', attack: 48, damageMultiplier: 0.18, criticalMultiplier: 0.2, rarity: 'epic' },
+                        { name: '永恒之剑', icon: '✨', attack: 50, attackSpeed: 0.25, criticalRate: 0.1, lifeSteal: 0.08, rarity: 'epic' },
+                        
+                        // 传说武器 (伤害55-80 + 超强属性)
+                        { name: '传说之剑', icon: '⚔️', attack: 55, criticalRate: 0.2, damageMultiplier: 0.25, rarity: 'legendary' },
+                        { name: '诸神黄昏', icon: '⚔️', attack: 60, damageMultiplier: 0.3, criticalMultiplier: 0.3, attackSpeed: 0.3, rarity: 'legendary' },
+                        { name: '虚空之刃', icon: '🌀', attack: 70, criticalRate: 0.25, lifeSteal: 0.25, damageMultiplier: 0.2, rarity: 'legendary' },
+                        { name: '创世之剑', icon: '🌟', attack: 80, criticalRate: 0.3, criticalMultiplier: 0.5, damageMultiplier: 0.35, lifeSteal: 0.15, rarity: 'legendary' }
+                    ],
+                    armors: [
+                        // 普通护甲 (防御2-8)
+                        { name: '布衣', icon: '👕', defense: 2, rarity: 'common' },
+                        { name: '皮甲', icon: '🛡️', defense: 3, rarity: 'common' },
+                        { name: '麻布衣', icon: '🧵', defense: 4, hp: 10, rarity: 'common' },
+                        { name: '铁甲', icon: '🛡️', defense: 5, rarity: 'common' },
+                        { name: '锁子甲', icon: '⛓️', defense: 6, rarity: 'common' },
+                        { name: '钢甲', icon: '🛡️', defense: 7, hp: 15, rarity: 'common' },
+                        { name: '青铜甲', icon: '🛡️', defense: 8, rarity: 'common' },
+                        
+                        // 优秀护甲 (防御9-15 + 生命值)
+                        { name: '强化皮甲', icon: '🛡️', defense: 9, hp: 20, rarity: 'uncommon' },
+                        { name: '精钢甲', icon: '🛡️', defense: 10, hp: 25, rarity: 'uncommon' },
+                        { name: '秘银甲', icon: '✨', defense: 11, hp: 30, speed: 10, rarity: 'uncommon' },
+                        { name: '龙鳞甲', icon: '🐉', defense: 12, hp: 35, defense: 12, rarity: 'uncommon' },
+                        { name: '魔法长袍', icon: '🧙', defense: 8, hp: 40, healingBonus: 0.1, rarity: 'uncommon' },
+                        { name: '战士甲', icon: '⚔️', defense: 13, hp: 30, attack: 3, rarity: 'uncommon' },
+                        { name: '骑士甲', icon: '🛡️', defense: 15, hp: 45, rarity: 'uncommon' },
+                        
+                        // 稀有护甲 (防御16-25 + 特殊属性)
+                        { name: '锁甲', icon: '🛡️', defense: 16, hp: 35, rarity: 'rare' },
+                        { name: '板甲', icon: '🛡️', defense: 18, hp: 40, rarity: 'rare' },
+                        { name: '精灵之衣', icon: '🧝', defense: 17, hp: 50, healingBonus: 0.15, speed: 15, rarity: 'rare' },
+                        { name: '吸血鬼甲', icon: '🧛', defense: 19, hp: 45, lifeSteal: 0.08, rarity: 'rare' },
+                        { name: '炎魔甲', icon: '🔥', defense: 20, hp: 55, damageMultiplier: 0.08, rarity: 'rare' },
+                        { name: '寒冰甲', icon: '❄️', defense: 22, hp: 50, criticalRate: 0.05, rarity: 'rare' },
+                        { name: '圣骑士甲', icon: '⚜️', defense: 25, hp: 60, healingBonus: 0.2, rarity: 'rare' },
+                        
+                        // 史诗护甲 (防御28-35 + 多重属性)
+                        { name: '板甲', icon: '🛡️', defense: 28, hp: 60, rarity: 'epic' },
+                        { name: '龙骨甲', icon: '🦴', defense: 30, hp: 70, defense: 30, attack: 5, rarity: 'epic' },
+                        { name: '天使之甲', icon: '👼', defense: 32, hp: 80, healingBonus: 0.25, lifeSteal: 0.1, rarity: 'epic' },
+                        { name: '死神甲', icon: '💀', defense: 35, hp: 85, damageMultiplier: 0.15, criticalRate: 0.08, rarity: 'epic' },
+                        { name: '元素之甲', icon: '🌈', defense: 33, hp: 75, damageMultiplier: 0.1, healingBonus: 0.15, rarity: 'epic' },
+                        
+                        // 传说护甲 (防御40-50 + 超强属性)
+                        { name: '圣骑士甲', icon: '⚜️', defense: 40, hp: 90, healingBonus: 0.3, rarity: 'legendary' },
+                        { name: '诸神之甲', icon: '⚡', defense: 45, hp: 100, damageMultiplier: 0.2, lifeSteal: 0.15, rarity: 'legendary' },
+                        { name: '永恒之甲', icon: '✨', defense: 50, hp: 120, healingBonus: 0.4, lifeSteal: 0.2, defense: 50, rarity: 'legendary' }
+                    ],
+                    helmets: [
+                        // 普通头盔 (防御1-6)
+                        { name: '布帽', icon: '👑', defense: 1, rarity: 'common' },
+                        { name: '皮帽', icon: '🎩', defense: 2, rarity: 'common' },
+                        { name: '铁盔', icon: '🪖', defense: 3, rarity: 'common' },
+                        { name: '钢盔', icon: '🛡️', defense: 4, rarity: 'common' },
+                        { name: '铜盔', icon: '🧢', defense: 5, rarity: 'common' },
+                        { name: '青铜盔', icon: '🪖', defense: 6, rarity: 'common' },
+                        
+                        // 优秀头盔 (防御7-12 + 生命值)
+                        { name: '强化铁盔', icon: '🪖', defense: 7, hp: 12, rarity: 'uncommon' },
+                        { name: '精钢盔', icon: '🛡️', defense: 8, hp: 15, rarity: 'uncommon' },
+                        { name: '秘银盔', icon: '✨', defense: 9, hp: 18, speed: 8, rarity: 'uncommon' },
+                        { name: '龙鳞盔', icon: '🐉', defense: 10, hp: 20, criticalRate: 0.03, rarity: 'uncommon' },
+                        { name: '魔法头冠', icon: '🎓', defense: 7, hp: 22, healingBonus: 0.08, rarity: 'uncommon' },
+                        { name: '战士盔', icon: '⚔️', defense: 11, hp: 16, attack: 2, rarity: 'uncommon' },
+                        { name: '骑士盔', icon: '⚔️', defense: 12, hp: 25, rarity: 'uncommon' },
+                        
+                        // 稀有头盔 (防御13-20 + 特殊属性)
+                        { name: '精钢盔', icon: '🛡️', defense: 13, hp: 22, rarity: 'rare' },
+                        { name: '精灵之冠', icon: '🧝', defense: 14, hp: 28, healingBonus: 0.12, speed: 12, rarity: 'rare' },
+                        { name: '吸血鬼面具', icon: '🧛', defense: 15, hp: 25, lifeSteal: 0.06, rarity: 'rare' },
+                        { name: '炎魔面具', icon: '🔥', defense: 16, hp: 30, damageMultiplier: 0.06, rarity: 'rare' },
+                        { name: '寒冰头盔', icon: '❄️', defense: 17, hp: 32, criticalRate: 0.04, rarity: 'rare' },
+                        { name: '神圣头盔', icon: '⚜️', defense: 20, hp: 35, healingBonus: 0.15, rarity: 'rare' },
+                        
+                        // 史诗头盔 (防御22-28 + 多重属性)
+                        { name: '龙骨头盔', icon: '🦴', defense: 22, hp: 40, defense: 22, attack: 3, rarity: 'epic' },
+                        { name: '天使之冠', icon: '👼', defense: 24, hp: 45, healingBonus: 0.2, lifeSteal: 0.08, rarity: 'epic' },
+                        { name: '死神面具', icon: '💀', defense: 26, hp: 50, damageMultiplier: 0.12, criticalRate: 0.06, rarity: 'epic' },
+                        { name: '元素之冠', icon: '🌈', defense: 25, hp: 42, damageMultiplier: 0.08, healingBonus: 0.12, rarity: 'epic' },
+                        
+                        // 传说头盔 (防御30-35 + 超强属性)
+                        { name: '王者之冠', icon: '👑', defense: 30, hp: 55, healingBonus: 0.25, rarity: 'legendary' },
+                        { name: '诸神之冠', icon: '⚡', defense: 33, hp: 65, damageMultiplier: 0.15, lifeSteal: 0.12, rarity: 'legendary' },
+                        { name: '永恒之冠', icon: '✨', defense: 35, hp: 75, healingBonus: 0.35, lifeSteal: 0.15, defense: 35, rarity: 'legendary' }
+                    ],
+                    necklaces: [
+                        // 普通项链 (攻击2-8)
+                        { name: '普通项链', icon: '📿', attack: 2, rarity: 'common' },
+                        { name: '银项链', icon: '📿', attack: 3, rarity: 'common' },
+                        { name: '铜项链', icon: '📿', attack: 4, rarity: 'common' },
+                        { name: '幸运项链', icon: '🍀', criticalRate: 0.04, rarity: 'common' },
+                        { name: '力量项链', icon: '💪', attack: 5, rarity: 'common' },
+                        { name: '守护项链', icon: '🛡️', defense: 2, hp: 10, rarity: 'common' },
+                        { name: '敏捷项链', icon: '⚡', speed: 15, rarity: 'common' },
+                        { name: '魔法项链', icon: '✨', attack: 6, criticalRate: 0.02, rarity: 'common' },
+                        
+                        // 优秀项链 (属性7-15 + 特殊属性)
+                        { name: '幸运项链', icon: '🍀', criticalRate: 0.07, rarity: 'uncommon' },
+                        { name: '力量项链', icon: '💪', attack: 9, rarity: 'uncommon' },
+                        { name: '吸血项链', icon: '🩸', lifeSteal: 0.06, rarity: 'uncommon' },
+                        { name: '暴击项链', icon: '💥', criticalRate: 0.1, attack: 4, rarity: 'uncommon' },
+                        { name: '生命项链', icon: '💚', hp: 25, healingBonus: 0.08, rarity: 'uncommon' },
+                        { name: '防御项链', icon: '🛡️', defense: 5, hp: 20, rarity: 'uncommon' },
+                        { name: '速度项链', icon: '⚡', speed: 30, attackSpeed: 0.06, rarity: 'uncommon' },
+                        
+                        // 稀有项链 (属性16-25 + 强力属性)
+                        { name: '力量项链', icon: '💪', attack: 18, rarity: 'rare' },
+                        { name: '精灵之链', icon: '🧝', attack: 16, speed: 25, healingBonus: 0.1, rarity: 'rare' },
+                        { name: '吸血项链', icon: '🩸', lifeSteal: 0.12, attack: 8, rarity: 'rare' },
+                        { name: '雷霆项链', icon: '⚡', damageMultiplier: 0.1, criticalRate: 0.08, rarity: 'rare' },
+                        { name: '生命之链', icon: '💚', hp: 40, healingBonus: 0.15, lifeSteal: 0.05, rarity: 'rare' },
+                        { name: '圣洁项链', icon: '⚜️', attack: 20, healingBonus: 0.18, defense: 3, rarity: 'rare' },
+                        { name: '狂暴项链', icon: '😤', attack: 25, damageMultiplier: 0.12, criticalRate: 0.06, rarity: 'rare' },
+                        
+                        // 史诗项链 (属性28-40 + 多重属性)
+                        { name: '吸血项链', icon: '🩸', lifeSteal: 0.18, attack: 12, rarity: 'epic' },
+                        { name: '神之项链', icon: '⚡', attack: 30, criticalRate: 0.12, lifeSteal: 0.1, rarity: 'epic' },
+                        { name: '龙血项链', icon: '🐉', attack: 32, hp: 50, lifeSteal: 0.15, damageMultiplier: 0.08, rarity: 'epic' },
+                        { name: '天使项链', icon: '👼', attack: 28, healingBonus: 0.25, lifeSteal: 0.12, rarity: 'epic' },
+                        { name: '死亡项链', icon: '💀', damageMultiplier: 0.2, criticalRate: 0.15, lifeSteal: 0.1, rarity: 'epic' },
+                        
+                        // 传说项链 (属性45-60 + 超强属性)
+                        { name: '神之项链', icon: '⚡', attack: 45, criticalRate: 0.18, lifeSteal: 0.2, rarity: 'legendary' },
+                        { name: '虚空项链', icon: '🌀', attack: 55, damageMultiplier: 0.25, lifeSteal: 0.25, rarity: 'legendary' },
+                        { name: '创世项链', icon: '🌟', attack: 60, criticalRate: 0.25, lifeSteal: 0.2, damageMultiplier: 0.2, healingBonus: 0.15, rarity: 'legendary' }
+                    ],
+                    rings: [
+                        // 普通戒指 (攻击1-6)
+                        { name: '普通戒指', icon: '💍', attack: 1, rarity: 'common' },
+                        { name: '银戒指', icon: '💍', attack: 2, rarity: 'common' },
+                        { name: '铜戒指', icon: '💍', attack: 3, rarity: 'common' },
+                        { name: '铁戒指', icon: '💍', attack: 4, rarity: 'common' },
+                        { name: '钢戒指', icon: '💍', attack: 5, rarity: 'common' },
+                        { name: '幸运戒指', icon: '🍀', criticalRate: 0.03, rarity: 'common' },
+                        { name: '防御戒指', icon: '🛡️', defense: 2, rarity: 'common' },
+                        { name: '生命戒指', icon: '💚', hp: 8, rarity: 'common' },
+                        
+                        // 优秀戒指 (属性7-15 + 特殊属性)
+                        { name: '敏捷戒指', icon: '⚡', attackSpeed: 0.08, rarity: 'uncommon' },
+                        { name: '力量戒指', icon: '💪', attack: 9, rarity: 'uncommon' },
+                        { name: '魔法戒指', icon: '✨', criticalRate: 0.06, attack: 5, rarity: 'uncommon' },
+                        { name: '吸血戒指', icon: '🩸', lifeSteal: 0.05, rarity: 'uncommon' },
+                        { name: '防御戒指', icon: '🛡️', defense: 4, hp: 15, rarity: 'uncommon' },
+                        { name: '治疗戒指', icon: '💚', healingBonus: 0.1, rarity: 'uncommon' },
+                        { name: '速度戒指', icon: '⚡', speed: 20, attackSpeed: 0.05, rarity: 'uncommon' },
+                        
+                        // 稀有戒指 (属性16-25 + 强力属性)
+                        { name: '力量戒指', icon: '💪', attack: 18, rarity: 'rare' },
+                        { name: '死亡戒指', icon: '💀', attack: 20, criticalRate: 0.1, rarity: 'rare' },
+                        { name: '吸血戒指', icon: '🩸', lifeSteal: 0.1, attack: 6, rarity: 'rare' },
+                        { name: '狂暴戒指', icon: '😤', attack: 22, damageMultiplier: 0.1, rarity: 'rare' },
+                        { name: '神圣戒指', icon: '⚜️', attack: 17, healingBonus: 0.15, lifeSteal: 0.06, rarity: 'rare' },
+                        { name: '元素戒指', icon: '🌈', attack: 19, damageMultiplier: 0.12, criticalRate: 0.07, rarity: 'rare' },
+                        { name: '龙戒指', icon: '🐉', attack: 25, lifeSteal: 0.12, hp: 20, rarity: 'rare' },
+                        
+                        // 史诗戒指 (属性28-40 + 多重属性)
+                        { name: '死亡戒指', icon: '💀', attack: 28, criticalRate: 0.12, damageMultiplier: 0.15, rarity: 'epic' },
+                        { name: '龙戒', icon: '🐉', attack: 32, hp: 35, lifeSteal: 0.15, rarity: 'epic' },
+                        { name: '天使戒指', icon: '👼', attack: 30, healingBonus: 0.2, lifeSteal: 0.12, rarity: 'epic' },
+                        { name: '虚空戒指', icon: '🌀', attack: 35, damageMultiplier: 0.2, criticalRate: 0.1, rarity: 'epic' },
+                        { name: '元素戒指', icon: '🌈', attack: 38, damageMultiplier: 0.18, healingBonus: 0.15, rarity: 'epic' },
+                        
+                        // 传说戒指 (属性45-55 + 超强属性)
+                        { name: '诸神之戒', icon: '⚡', attack: 45, criticalRate: 0.15, damageMultiplier: 0.2, rarity: 'legendary' },
+                        { name: '虚空戒指', icon: '🌀', attack: 50, damageMultiplier: 0.25, lifeSteal: 0.2, criticalRate: 0.12, rarity: 'legendary' },
+                        { name: '创世戒指', icon: '🌟', attack: 55, criticalRate: 0.2, damageMultiplier: 0.3, lifeSteal: 0.15, rarity: 'legendary' }
+                    ],
+                    boots: [
+                        // 普通靴子 (速度15-35)
+                        { name: '草鞋', icon: '👢', speed: 15, rarity: 'common' },
+                        { name: '布鞋', icon: '👟', speed: 20, rarity: 'common' },
+                        { name: '皮靴', icon: '👢', speed: 25, rarity: 'common' },
+                        { name: '铁靴', icon: '🥾', speed: 30, rarity: 'common' },
+                        { name: '钢靴', icon: '👢', speed: 35, rarity: 'common' },
+                        { name: '运动鞋', icon: '👟', speed: 28, attackSpeed: 0.04, rarity: 'common' },
+                        { name: '军靴', icon: '🥾', speed: 32, defense: 2, rarity: 'common' },
+                        { name: '旅行靴', icon: '👢', speed: 34, hp: 8, rarity: 'common' },
+                        
+                        // 优秀靴子 (速度38-60 + 特殊属性)
+                        { name: '皮靴', icon: '👢', speed: 40, rarity: 'uncommon' },
+                        { name: '精钢靴', icon: '🥾', speed: 42, defense: 3, rarity: 'uncommon' },
+                        { name: '秘银靴', icon: '✨', speed: 45, attackSpeed: 0.08, rarity: 'uncommon' },
+                        { name: '龙皮靴', icon: '🐉', speed: 48, lifeSteal: 0.04, rarity: 'uncommon' },
+                        { name: '疾风靴', icon: '⚡', speed: 55, attackSpeed: 0.1, rarity: 'uncommon' },
+                        { name: '精灵靴', icon: '🧝', speed: 50, healingBonus: 0.08, criticalRate: 0.03, rarity: 'uncommon' },
+                        { name: '战士靴', icon: '⚔️', speed: 52, defense: 4, attack: 3, rarity: 'uncommon' },
+                        { name: '骑士靴', icon: '🛡️', speed: 60, defense: 5, hp: 15, rarity: 'uncommon' },
+                        
+                        // 稀有靴子 (速度65-90 + 强力属性)
+                        { name: '铁靴', icon: '🥾', speed: 65, defense: 5, rarity: 'rare' },
+                        { name: '疾风靴', icon: '⚡', speed: 70, attackSpeed: 0.12, criticalRate: 0.05, rarity: 'rare' },
+                        { name: '龙靴', icon: '🐉', speed: 75, lifeSteal: 0.08, attack: 5, rarity: 'rare' },
+                        { name: '天使之靴', icon: '👼', speed: 80, healingBonus: 0.12, defense: 4, rarity: 'rare' },
+                        { name: '死神之靴', icon: '💀', speed: 72, damageMultiplier: 0.1, criticalRate: 0.08, rarity: 'rare' },
+                        { name: '元素之靴', icon: '🌈', speed: 78, damageMultiplier: 0.12, healingBonus: 0.1, rarity: 'rare' },
+                        { name: '神圣战靴', icon: '⚜️', speed: 85, defense: 8, healingBonus: 0.15, rarity: 'rare' },
+                        
+                        // 史诗靴子 (速度95-120 + 多重属性)
+                        { name: '疾风靴', icon: '⚡', speed: 95, attackSpeed: 0.2, criticalRate: 0.1, rarity: 'epic' },
+                        { name: '龙骨靴', icon: '🦴', speed: 100, defense: 10, attack: 8, lifeSteal: 0.1, rarity: 'epic' },
+                        { name: '天使之靴', icon: '👼', speed: 105, healingBonus: 0.2, defense: 6, speed: 105, rarity: 'epic' },
+                        { name: '死神之靴', icon: '💀', speed: 110, damageMultiplier: 0.18, criticalRate: 0.12, rarity: 'epic' },
+                        { name: '元素之靴', icon: '🌈', speed: 115, damageMultiplier: 0.15, healingBonus: 0.18, attackSpeed: 0.1, rarity: 'epic' },
+                        
+                        // 传说靴子 (速度130-150 + 超强属性)
+                        { name: '飞靴', icon: '✈️', speed: 130, defense: 12, attackSpeed: 0.25, rarity: 'legendary' },
+                        { name: '诸神之靴', icon: '⚡', speed: 140, damageMultiplier: 0.2, lifeSteal: 0.15, criticalRate: 0.15, rarity: 'legendary' },
+                        { name: '永恒之靴', icon: '✨', speed: 150, healingBonus: 0.3, lifeSteal: 0.2, defense: 15, rarity: 'legendary' }
+                    ]
+                };
+            }
+            
+            initTalentDatabase() {
+                return [
+                    // === 攻击型天赋 ===
+                    { name: '火焰强化', icon: '🔥', description: '增加攻击力', attack: 5 },
+                    { name: '烈焰之怒', icon: '🔥', description: '大幅增加攻击力', attack: 12 },
+                    { name: '狂暴攻击', icon: '😤', description: '增加攻击力，降低防御', attack: 15, defense: -3 },
+                    { name: '攻击精通', icon: '⚔️', description: '增加攻击力和攻击速度', attack: 8, attackSpeed: 0.15 },
+                    { name: '破坏者', icon: '💥', description: '增加攻击力和暴击率', attack: 10, criticalRate: 0.1 },
+                    { name: '元素之刃', icon: '⚡', description: '增加攻击力和伤害加成', attack: 8, damageMultiplier: 0.15 },
+                    { name: '战神降临', icon: '⚔️', description: '大幅增加攻击力和暴击伤害', attack: 10, criticalMultiplier: 0.3 },
+                    { name: '雷霆之力', icon: '⚡', description: '增加攻击力和速度', attack: 6, speed: 40, attackSpeed: 0.1 },
+                    
+                    // === 防御型天赋 ===
+                    { name: '寒冰护甲', icon: '❄️', description: '增加防御力', defense: 4 },
+                    { name: '钢铁意志', icon: '🛡️', description: '增加防御和生命', defense: 8, maxHp: 20, hp: 20 },
+                    { name: '守护者', icon: '🛡️', description: '大幅增加防御和生命', defense: 12, maxHp: 30, hp: 30 },
+                    { name: '不朽之躯', icon: '💚', description: '大幅增加生命值', maxHp: 50, hp: 50 },
+                    { name: '护甲精通', icon: '🛡️', description: '增加防御力和生命值', defense: 10, maxHp: 25, hp: 25 },
+                    { name: '元素护盾', icon: '🌈', description: '增加防御和治疗效果', defense: 8, healingBonus: 0.15 },
+                    { name: '泰坦之躯', icon: '⛰️', description: '大幅提升防御和生命', defense: 15, maxHp: 40, hp: 40 },
+                    { name: '不朽守护', icon: '✨', description: '增加防御、生命和治疗效果', defense: 10, maxHp: 30, hp: 30, healingBonus: 0.2 },
+                    
+                    // === 暴击型天赋 ===
+                    { name: '闪电打击', icon: '⚡', description: '增加暴击率', criticalRate: 0.15 },
+                    { name: '致命一击', icon: '💀', description: '增加暴击率和暴击伤害', criticalRate: 0.1, criticalMultiplier: 0.3 },
+                    { name: '暴击精通', icon: '💥', description: '大幅增加暴击率和暴击伤害', criticalRate: 0.2, criticalMultiplier: 0.4 },
+                    { name: '幸运一击', icon: '🍀', description: '增加暴击率和攻击速度', criticalRate: 0.15, attackSpeed: 0.12 },
+                    { name: '死神降临', icon: '💀', description: '大幅增加暴击率', criticalRate: 0.25 },
+                    { name: '精准打击', icon: '🎯', description: '增加暴击伤害和伤害加成', criticalMultiplier: 0.35, damageMultiplier: 0.1 },
+                    { name: '连环暴击', icon: '💥', description: '增加暴击率和暴击伤害', criticalRate: 0.18, criticalMultiplier: 0.25 },
+                    { name: '致命精通', icon: '⚔️', description: '大幅提升暴击属性', criticalRate: 0.22, criticalMultiplier: 0.3, attack: 5 },
+                    
+                    // === 生命偷取天赋 ===
+                    { name: '血之渴望', icon: '🩸', description: '增加生命偷取', attack: 3, lifeSteal: 0.08 },
+                    { name: '吸血鬼之血', icon: '🧛', description: '大幅增加生命偷取', lifeSteal: 0.2 },
+                    { name: '鲜血渴望', icon: '🩸', description: '增加攻击和生命偷取', attack: 8, lifeSteal: 0.15 },
+                    { name: '生命吸取', icon: '💚', description: '增加生命偷取和治疗效果', lifeSteal: 0.12, healingBonus: 0.1 },
+                    { name: '血腥狂暴', icon: '😈', description: '大幅增加生命偷取，降低防御', lifeSteal: 0.25, defense: -4, attack: 6 },
+                    { name: '不朽血脉', icon: '🩸', description: '增加生命偷取和生命值', lifeSteal: 0.18, maxHp: 25, hp: 25 },
+                    { name: '鲜血盛宴', icon: '🍷', description: '大幅提升生命偷取', lifeSteal: 0.3, attack: 5 },
+                    
+                    // === 速度型天赋 ===
+                    { name: '暗影步', icon: '👻', description: '增加攻击和速度', attack: 3, speed: 20 },
+                    { name: '神速', icon: '💨', description: '大幅增加移动速度', speed: 60 },
+                    { name: '风之子', icon: '🌪️', description: '大幅增加速度和攻击速度', speed: 50, attackSpeed: 0.2 },
+                    { name: '疾风步', icon: '⚡', description: '增加速度和暴击率', speed: 40, criticalRate: 0.1 },
+                    { name: '影舞者', icon: '👻', description: '增加速度和暴击伤害', speed: 45, criticalMultiplier: 0.2 },
+                    { name: '瞬移大师', icon: '⚡', description: '大幅提升速度属性', speed: 70, attackSpeed: 0.15 },
+                    { name: '风之祝福', icon: '🌪️', description: '增加速度、攻击和暴击率', speed: 55, attack: 5, criticalRate: 0.08 },
+                    
+                    // === 治疗型天赋 ===
+                    { name: '自然祝福', icon: '🌿', description: '增强治疗效果', healingBonus: 0.15 },
+                    { name: '生命之泉', icon: '💧', description: '大幅增加治疗效果', healingBonus: 0.3 },
+                    { name: '神圣祝福', icon: '⚜️', description: '增加治疗效果和生命值', healingBonus: 0.25, maxHp: 20, hp: 20 },
+                    { name: '治愈之手', icon: '💚', description: '大幅增加治疗效果', healingBonus: 0.35 },
+                    { name: '生命之环', icon: '💚', description: '增加治疗效果和生命偷取', healingBonus: 0.2, lifeSteal: 0.08 },
+                    { name: '神圣治愈', icon: '✨', description: '大幅提升治疗效果', healingBonus: 0.4, defense: 5 },
+                    { name: '自然复苏', icon: '🌿', description: '增加治疗效果和生命值', healingBonus: 0.28, maxHp: 30, hp: 30 },
+                    
+                    // === 综合型天赋 ===
+                    { name: '全能战士', icon: '🌟', description: '小幅提升所有属性', attack: 3, defense: 3, maxHp: 15, hp: 15, speed: 15 },
+                    { name: '战斗大师', icon: '⚔️', description: '全面提升战斗属性', attack: 8, defense: 6, criticalRate: 0.08, speed: 20 },
+                    { name: '完美战士', icon: '🌟', description: '全面提升所有属性', attack: 6, defense: 6, maxHp: 25, hp: 25, speed: 30, criticalRate: 0.05 },
+                    { name: '神之恩赐', icon: '✨', description: '大幅提升多项属性', attack: 10, defense: 8, maxHp: 30, hp: 30, criticalRate: 0.1 },
+                    { name: '元素大师', icon: '🌈', description: '全面提升元素属性', damageMultiplier: 0.15, healingBonus: 0.2, criticalRate: 0.08 },
+                    { name: '不朽者', icon: '⚡', description: '全面提升生存和战斗能力', attack: 8, defense: 10, maxHp: 40, hp: 40, lifeSteal: 0.1 },
+                    { name: '创世之力', icon: '🌟', description: '全面大幅提升属性', attack: 12, defense: 10, maxHp: 35, hp: 35, speed: 40, criticalRate: 0.12, damageMultiplier: 0.1 },
+                    
+                    // === 特殊天赋 ===
+                    { name: '狂战士', icon: '😤', description: '大幅增加攻击，降低防御', attack: 15, defense: -5 },
+                    { name: '玻璃大炮', icon: '💥', description: '大幅增加攻击和暴击，大幅降低防御', attack: 20, criticalRate: 0.2, damageMultiplier: 0.2, defense: -8 },
+                    { name: '坚不可摧', icon: '🛡️', description: '大幅增加防御和生命，降低攻击', defense: 15, maxHp: 50, hp: 50, attack: -5 },
+                    { name: '平衡大师', icon: '⚖️', description: '平衡提升各项属性', attack: 7, defense: 7, maxHp: 20, hp: 20, speed: 25, criticalRate: 0.06 },
+                    { name: '元素契约', icon: '🔥', description: '与元素签订契约，获得多项加成', attack: 6, damageMultiplier: 0.15, healingBonus: 0.15, criticalRate: 0.1 },
+                    { name: '暗影契约', icon: '👻', description: '与暗影签订契约，获得特殊能力', attack: 10, lifeSteal: 0.15, criticalRate: 0.12, speed: 35 },
+                    { name: '神圣契约', icon: '✨', description: '与神圣签订契约，获得庇护', defense: 10, healingBonus: 0.25, maxHp: 30, hp: 30, lifeSteal: 0.1 }
+                ];
+            }
+            
+            init() {
+                this.bindEvents();
+                this.generateEnemies();
+                this.gameLoop();
+            }
+            
+            bindEvents() {
+                // 键盘事件
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key.toLowerCase()] = true;
+                    this.handleSkillInput(e.key);
+                    this.handleEquipmentInput(e.key);
+                    
+                    // 打开仓库
+                    if (e.key.toLowerCase() === 'i') {
+                        this.toggleInventory();
+                    }
+                });
+                
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key.toLowerCase()] = false;
+                });
+                
+                // 鼠标事件
+                this.canvas.addEventListener('mousemove', (e) => {
+                    this.mouse.x = e.clientX;
+                    this.mouse.y = e.clientY;
+                });
+                
+                this.canvas.addEventListener('mousedown', (e) => {
+                    this.mouse.isDown = true;
+                    this.mouse.lastClickTime = Date.now();
+                });
+                
+                this.canvas.addEventListener('mouseup', (e) => {
+                    this.mouse.isDown = false;
+                });
+                
+                // 装备槽点击事件
+                document.querySelectorAll('.equipment-slot').forEach(slot => {
+                    slot.addEventListener('click', (e) => {
+                        const slotName = slot.dataset.slot;
+                        this.showEquipmentTooltip(slotName, e.clientX, e.clientY);
+                    });
+                });
+                
+                // 点击其他地方关闭提示框
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#equipment-tooltip') && !e.target.closest('.equipment-slot')) {
+                        this.hideEquipmentTooltip();
+                    }
+                });
+                
+                // 右键取消
+                this.canvas.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                });
+            }
+            
+            handleEquipmentInput(key) {
+                const keyNum = parseInt(key);
+                if (keyNum >= 1 && keyNum <= 6) {
+                    const slotNames = ['weapon', 'armor', 'helmet', 'necklace', 'ring', 'boots'];
+                    const slotName = slotNames[keyNum - 1];
+                    
+                    if (this.player.equipment[slotName]) {
+                        // 已装备，卸下
+                        this.unequipItem(slotName);
+                    } else {
+                        // 未装备，查找仓库中的对应装备
+                        const matchingItem = this.player.inventory.find(item => {
+                            // 使用getItemSlotType来判断装备类型
+                            const itemSlotType = this.getItemSlotType(item);
+                            return itemSlotType === slotName;
+                        });
+                        
+                        if (matchingItem) {
+                            this.equipItemFromInventory(matchingItem, slotName);
+                        }
+                    }
+                }
+            }
+            
+            // getSlotTypeFromName 函数已删除，现在统一使用 getItemSlotType 函数
+            
+            handleSkillInput(key) {
+                const keyUpper = key.toUpperCase();
+                const now = Date.now() / 1000;
+                
+                if (this.gameState !== 'playing') return;
+                
+                switch(keyUpper) {
+                    case 'Q':
+                        this.useSkill('skill1');
+                        break;
+                    case 'F':
+                        this.useSkill('skill2');
+                        break;
+                    case 'E':
+                        this.useSkill('skill3');
+                        break;
+                    case 'R':
+                        this.useSkill('skill4');
+                        break;
+                }
+            }
+            
+            useSkill(skillId) {
+                const skill = this.player.skills[skillId];
+                if (skill.currentCooldown > 0) return;
+                
+                const screenX = this.player.x - this.camera.x;
+                const screenY = this.player.y - this.camera.y;
+                
+                const mouseWorldX = this.mouse.x + this.camera.x;
+                const mouseWorldY = this.mouse.y + this.camera.y;
+                
+                switch(skillId) {
+                    case 'skill1': // 烈焰斩
+                        this.createMeleeAttack(skill.damage * 1.5, 200);
+                        break;
+                    case 'skill2': // 闪电突
+                        const angle = Math.atan2(mouseWorldY - this.player.y, mouseWorldX - this.player.x);
+                        this.createProjectile(angle, skill.damage * 1.2, 600);
+                        break;
+                    case 'skill3': // 治疗术
+                        const healAmount = skill.healing * (1 + (this.player.talents.find(t => t.healingBonus) || {healingBonus: 0}).healingBonus);
+                        this.healPlayer(healAmount);
+                        break;
+                    case 'skill4': // 狂暴
+                        this.activateRage();
+                        break;
+                }
+                
+                skill.currentCooldown = skill.cooldown;
+            }
+            
+            createMeleeAttack(damage, range) {
+                const attackAngle = Math.atan2(
+                    this.mouse.y + this.camera.y - this.player.y,
+                    this.mouse.x + this.camera.x - this.player.x
+                );
+                
+                this.enemies.forEach(enemy => {
+                    const dx = enemy.x - this.player.x;
+                    const dy = enemy.y - this.player.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const enemyAngle = Math.atan2(dy, dx);
+                    
+                    if (distance < range && Math.abs(enemyAngle - attackAngle) < Math.PI / 3) {
+                        this.dealDamageToEnemy(enemy, damage, true);
+                    }
+                });
+            }
+            
+            createProjectile(angle, damage, speed) {
+                this.projectiles.push({
+                    x: this.player.x,
+                    y: this.player.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    damage: damage,
+                    radius: 8,
+                    lifetime: 2,
+                    friendly: true,
+                    color: '#00ff00'
+                });
+            }
+            
+            healPlayer(amount) {
+                const healAmount = amount * (1 + (this.player.healingBonus || 0));
+                this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmount);
+                this.showDamageNumber(this.player.x, this.player.y, Math.round(healAmount), 'heal');
+                this.updateUI();
+            }
+            
+            activateRage() {
+                this.player.skills.skill4.active = true;
+                const originalAttack = this.player.baseStats.attack;
+                this.player.baseStats.attack *= 1.5;
+                
+                // 显示狂暴特效
+                this.showDamageNumber(this.player.x, this.player.y, 0, 'critical');
+                
+                setTimeout(() => {
+                    this.player.skills.skill4.active = false;
+                    this.player.baseStats.attack = originalAttack;
+                    this.recalculateStats();
+                }, this.player.skills.skill4.duration * 1000);
+            }
+            
+            generateEnemies() {
+                const enemyCount = 10 + this.floorNumber * 5;
+                
+                for (let i = 0; i < enemyCount; i++) {
+                    this.spawnEnemy();
+                }
+            }
+            
+            spawnEnemy(forceType = null) {
+                const types = ['goblin', 'orc', 'dragon', 'boss'];
+                const type = forceType || types[Math.floor(Math.random() * types.length)];
+                
+                const baseStats = {
+                    goblin: { hp: 30, attack: 8, speed: 100, exp: 20, gold: 5, color: '#00ff00', icon: '👺', size: 25, attackRange: 60, attackCooldown: 2 },
+                    orc: { hp: 60, attack: 15, speed: 80, exp: 40, gold: 10, color: '#ff8800', icon: '👹', size: 30, attackRange: 70, attackCooldown: 1.8 },
+                    dragon: { hp: 150, attack: 25, speed: 120, exp: 100, gold: 30, color: '#ff4444', icon: '🐉', size: 40, attackRange: 80, attackCooldown: 1.5 },
+                    boss: { hp: 300, attack: 40, speed: 60, exp: 200, gold: 100, color: '#ff00ff', icon: '👿', size: 50, attackRange: 100, attackCooldown: 1.2 }
+                };
+                
+                const stats = baseStats[type];
+                const floorMultiplier = 1 + (this.floorNumber - 1) * 0.2;
+                
+                // 确保怪物不会生成在玩家附近
+                let spawnX, spawnY;
+                do {
+                    spawnX = Math.random() * this.mapWidth;
+                    spawnY = Math.random() * this.mapHeight;
+                } while (Math.abs(spawnX - this.player.x) < 300 && Math.abs(spawnY - this.player.y) < 300);
+                
+                this.enemies.push({
+                    x: spawnX,
+                    y: spawnY,
+                    width: stats.size * 2,
+                    height: stats.size * 2,
+                    vx: 0,
+                    vy: 0,
+                    hp: stats.hp * floorMultiplier,
+                    maxHp: stats.hp * floorMultiplier,
+                    attack: stats.attack * floorMultiplier,
+                    speed: stats.speed,
+                    exp: stats.exp * floorMultiplier,
+                    gold: stats.gold * floorMultiplier,
+                    color: stats.color,
+                    icon: stats.icon,
+                    size: stats.size,
+                    type: type,
+                    lastAttackTime: 0,
+                    attackCooldown: stats.attackCooldown,
+                    attackRange: stats.attackRange,
+                    animationState: 'idle',
+                    animationFrame: 0,
+                    aggroRange: 300,
+                    isBoss: type === 'boss',
+                    dropChance: type === 'boss' ? 0.8 : 0.3,
+                    isAttacking: false,
+                    floorId: this.floorNumber  // 标记怪物所属的楼层
+                });
+            }
+            
+            update(deltaTime) {
+                if (this.gameState !== 'playing') return;
+                
+                // 更新时间
+                this.elapsedTime = Date.now() - this.gameStartTime;
+                
+                // 更新玩家
+                this.updatePlayer(deltaTime);
+                
+                // 更新敌人
+                this.updateEnemies(deltaTime);
+                
+                // 更新投射物
+                this.updateProjectiles(deltaTime);
+                
+                // 更新伤害数字
+                this.updateDamageNumbers(deltaTime);
+                
+                // 更新技能冷却
+                this.updateSkillCooldowns(deltaTime);
+                
+                // 检查是否通关
+                this.checkLevelComplete();
+                
+                // 更新UI
+                this.updateUI();
+            }
+            
+            updatePlayer(deltaTime) {
+                // 计算移动方向
+                let moveX = 0;
+                let moveY = 0;
+                
+                if (this.keys['w'] || this.keys['arrowup']) moveY -= 1;
+                if (this.keys['s'] || this.keys['arrowdown']) moveY += 1;
+                if (this.keys['a'] || this.keys['arrowleft']) moveX -= 1;
+                if (this.keys['d'] || this.keys['arrowright']) moveX += 1;
+                
+                // 归一化移动向量
+                if (moveX !== 0 || moveY !== 0) {
+                    const length = Math.sqrt(moveX * moveX + moveY * moveY);
+                    moveX /= length;
+                    moveY /= length;
+                    
+                    this.player.animationState = 'run';
+                    this.player.animationFrame += deltaTime * 10;
+                } else {
+                    this.player.animationState = 'idle';
+                }
+                
+                // 更新朝向
+                if (moveX > 0) this.player.facingRight = true;
+                if (moveX < 0) this.player.facingRight = false;
+                
+                // 应用速度
+                const currentSpeed = this.player.speed;
+                this.player.vx = moveX * currentSpeed;
+                this.player.vy = moveY * currentSpeed;
+                
+                // 更新位置
+                this.player.x += this.player.vx * deltaTime;
+                this.player.y += this.player.vy * deltaTime;
+                
+                // 边界检测
+                this.player.x = Math.max(this.player.width / 2, Math.min(this.mapWidth - this.player.width / 2, this.player.x));
+                this.player.y = Math.max(this.player.height / 2, Math.min(this.mapHeight - this.player.height / 2, this.player.y));
+                
+                // 鼠标攻击
+                if (this.mouse.isDown && Date.now() - this.mouse.lastClickTime > 0.5) {
+                    this.playerAttack();
+                    this.mouse.lastClickTime = Date.now();
+                }
+            }
+            
+            playerAttack() {
+                const now = Date.now() / 1000;
+                if (now - this.player.lastAttackTime < 1 / this.player.attackSpeed) return;
+                
+                this.player.lastAttackTime = now;
+                this.player.animationState = 'attack';
+                
+                setTimeout(() => {
+                    this.player.animationState = 'idle';
+                }, this.player.attackAnimationTime * 1000);
+                
+                // 计算攻击方向
+                const mouseWorldX = this.mouse.x + this.camera.x;
+                const mouseWorldY = this.mouse.y + this.camera.y;
+                const attackAngle = Math.atan2(mouseWorldY - this.player.y, mouseWorldX - this.player.x);
+                
+                // 攻击范围
+                const attackRange = 80;
+                
+                // 检查范围内的敌人
+                this.enemies.forEach(enemy => {
+                    const dx = enemy.x - this.player.x;
+                    const dy = enemy.y - this.player.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const enemyAngle = Math.atan2(dy, dx);
+                    
+                    if (distance < attackRange && Math.abs(enemyAngle - attackAngle) < Math.PI / 3) {
+                        this.dealDamageToEnemy(enemy, this.player.attack, false);
+                    }
+                });
+            }
+            
+            dealDamageToEnemy(enemy, damage, isSkill) {
+                // 确保伤害值有效
+                let actualDamage = (typeof damage === 'number' && !isNaN(damage) && damage > 0) ? damage : 10;
+                
+                // 计算暴击
+                let isCritical = Math.random() < (this.player.criticalRate || 0.1);
+                
+                if (isCritical) {
+                    actualDamage *= (this.player.criticalMultiplier || 1.5);
+                }
+                
+                // 确保伤害值仍然是有效的数字
+                actualDamage = Math.max(1, Math.round(actualDamage));
+                
+                // 应用伤害
+                enemy.hp -= actualDamage;
+                
+                // 显示伤害数字 (修复参数顺序：x, y, damage, type)
+                this.showDamageNumber(enemy.x, enemy.y, actualDamage, isCritical ? 'critical' : 'player');
+                
+                // 生命偷取
+                if (this.player.lifeSteal > 0) {
+                    const lifeStealAmount = actualDamage * this.player.lifeSteal;
+                    this.healPlayer(lifeStealAmount);
+                }
+                
+                // 检查是否击杀
+                if (enemy.hp <= 0) {
+                    this.enemyDeath(enemy);
+                }
+            }
+            
+            enemyDeath(enemy) {
+                // 移除敌人
+                this.enemies = this.enemies.filter(e => e !== enemy);
+                
+                // 增加经验和金币
+                this.gainExp(enemy.exp);
+                this.player.gold += enemy.gold;
+                
+                // 更新击杀计数
+                this.enemyKillCount++;
+                
+                // 掉落装备
+                if (Math.random() < enemy.dropChance) {
+                    this.dropLoot();
+                }
+                
+                // 生成新敌人
+                if (this.enemies.length < 10) {
+                    this.spawnEnemy();
+                }
+                
+                // 显示击杀效果
+                this.createDeathEffect(enemy.x, enemy.y, enemy.color);
+            }
+            
+            dropLoot() {
+                const slotTypes = ['weapons', 'armors', 'helmets', 'necklaces', 'rings', 'boots'];
+                const slotType = slotTypes[Math.floor(Math.random() * slotTypes.length)];
+                const items = this.equipmentDatabase[slotType];
+                
+                // 根据层数选择装备稀有度
+                const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+                const rarityIndex = Math.min(Math.floor(Math.random() * (this.floorNumber + 2)), rarities.length - 1);
+                const targetRarity = rarities[rarityIndex];
+                
+                const filteredItems = items.filter(item => item.rarity === targetRarity || item.rarity === 'common');
+                const item = filteredItems[Math.floor(Math.random() * filteredItems.length)];
+                
+                if (item) {
+                    // 添加到仓库
+                    this.player.inventory.push({...item, id: Date.now()});
+                    this.showLootNotification(item, slotType);
+                }
+            }
+            
+            showLootNotification(item, slotType) {
+                const notification = document.getElementById('loot-notification');
+                const icon = document.getElementById('loot-icon');
+                const name = document.getElementById('loot-name');
+                const stats = document.getElementById('loot-stats');
+                
+                icon.textContent = item.icon;
+                name.textContent = item.name;
+                name.style.color = this.getRarityColor(item.rarity);
+                
+                let statsText = '';
+                for (const [key, value] of Object.entries(item)) {
+                    if (key !== 'name' && key !== 'icon' && key !== 'rarity' && typeof value === 'number') {
+                        const statName = {
+                            attack: '攻击力',
+                            defense: '防御力',
+                            hp: '生命值',
+                            maxHp: '生命值',
+                            speed: '移动速度',
+                            criticalRate: '暴击率',
+                            criticalMultiplier: '暴击伤害',
+                            lifeSteal: '生命偷取',
+                            attackSpeed: '攻击速度',
+                            damageMultiplier: '伤害加成',
+                            healingBonus: '治疗效果'
+                        }[key] || key;
+                        
+                        const displayValue = ['criticalRate', 'criticalMultiplier', 'lifeSteal', 'attackSpeed', 'damageMultiplier', 'healingBonus'].includes(key) 
+                            ? (value * 100).toFixed(0) + '%' 
+                            : value;
+                        
+                        statsText += `${statName}: +${displayValue}<br>`;
+                    }
+                }
+                
+                stats.innerHTML = statsText;
+                notification.classList.add('active');
+                
+                // 临时存储装备信息
+                notification.dataset.item = JSON.stringify(item);
+                notification.dataset.slotType = slotType;
+            }
+            
+            getRarityColor(rarity) {
+                const colors = {
+                    common: '#aaaaaa',
+                    uncommon: '#00ff00',
+                    rare: '#0088ff',
+                    epic: '#aa00ff',
+                    legendary: '#ffaa00'
+                };
+                return colors[rarity] || '#ffffff';
+            }
+            
+            gainExp(amount) {
+                this.player.exp += amount;
+                
+                while (this.player.exp >= this.player.expToLevel) {
+                    this.player.exp -= this.player.expToLevel;
+                    this.levelUp();
+                }
+            }
+            
+            levelUp() {
+                this.player.level++;
+                this.player.expToLevel = Math.floor(this.player.expToLevel * 1.5);
+                
+                // 基础属性提升
+                this.player.baseStats.attack += 2;
+                this.player.baseStats.defense += 1;
+                this.player.maxHp += 10;
+                this.player.hp = Math.min(this.player.hp + 10, this.player.maxHp);
+                
+                // 重新计算属性
+                this.recalculateStats();
+                
+                // 显示天赋选择
+                this.showTalentSelection();
+            }
+            
+            showTalentSelection() {
+                this.gameState = 'talent_selection';
+                
+                const modal = document.getElementById('talent-modal');
+                const container = document.getElementById('talent-cards-container');
+                
+                // 重置每次升级的刷新次数
+                this.talentRefreshCount = 1;
+                
+                // 随机选择4个天赋
+                const availableTalents = this.talentDatabase.filter(t => 
+                    !this.player.talents.find(pt => pt.name === t.name)
+                );
+                
+                const selectedTalents = [];
+                for (let i = 0; i < 4 && availableTalents.length > 0; i++) {
+                    const index = Math.floor(Math.random() * availableTalents.length);
+                    selectedTalents.push(availableTalents[index]);
+                    availableTalents.splice(index, 1);
+                }
+                
+                this.currentTalentOptions = selectedTalents;
+                this.renderTalentCards(selectedTalents);
+                
+                modal.classList.add('active');
+            }
+            
+            renderTalentCards(talents) {
+                const container = document.getElementById('talent-cards-container');
+                container.innerHTML = '';
+                
+                talents.forEach(talent => {
+                    const card = document.createElement('div');
+                    card.className = 'talent-card';
+                    
+                    let statsText = '';
+                    for (const [key, value] of Object.entries(talent)) {
+                        if (key !== 'name' && key !== 'icon' && key !== 'description' && typeof value === 'number') {
+                            const statName = {
+                                attack: '攻击力',
+                                defense: '防御力',
+                                hp: '生命值',
+                                maxHp: '最大生命值',
+                                speed: '移动速度',
+                                criticalRate: '暴击率',
+                                criticalMultiplier: '暴击伤害',
+                                lifeSteal: '生命偷取',
+                                healingBonus: '治疗效果',
+                                attackSpeed: '攻击速度',
+                                damageMultiplier: '伤害加成'
+                            }[key] || key;
+                            
+                            const displayValue = ['criticalRate', 'criticalMultiplier', 'lifeSteal', 'healingBonus', 'attackSpeed', 'damageMultiplier'].includes(key) 
+                                ? (value * 100).toFixed(0) + '%' 
+                                : value;
+                            
+                            statsText += `${statName}: ${displayValue >= 0 ? '+' : ''}${displayValue}\n`;
+                        }
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="talent-icon">${talent.icon}</div>
+                        <div class="talent-name">${talent.name}</div>
+                        <div class="talent-desc">${talent.description}</div>
+                        <div class="talent-stats">${statsText}</div>
+                    `;
+                    
+                    card.onclick = () => this.selectTalent(talent);
+                    container.appendChild(card);
+                });
+                
+                // 添加刷新按钮
+                const refreshButton = document.createElement('button');
+                refreshButton.className = 'refresh-button';
+                refreshButton.textContent = `刷新天赋 (剩余${this.talentRefreshCount}次)`;
+                refreshButton.onclick = () => this.refreshTalents();
+                container.appendChild(refreshButton);
+            }
+            
+            refreshTalents() {
+                if (this.talentRefreshCount <= 0) {
+                    alert('刷新次数已用完！');
+                    return;
+                }
+                
+                this.talentRefreshCount--;
+                
+                // 随机选择新的4个天赋
+                const availableTalents = this.talentDatabase.filter(t => 
+                    !this.player.talents.find(pt => pt.name === t.name)
+                );
+                
+                const newTalents = [];
+                for (let i = 0; i < 4 && availableTalents.length > 0; i++) {
+                    const index = Math.floor(Math.random() * availableTalents.length);
+                    newTalents.push(availableTalents[index]);
+                    availableTalents.splice(index, 1);
+                }
+                
+                this.currentTalentOptions = newTalents;
+                this.renderTalentCards(newTalents);
+            }
+            
+            selectTalent(talent) {
+                this.player.talents.push(talent);
+                
+                // 应用天赋效果
+                for (const [key, value] of Object.entries(talent)) {
+                    if (key !== 'name' && key !== 'icon' && key !== 'description' && typeof value === 'number') {
+                        if (this.player.baseStats.hasOwnProperty(key)) {
+                            this.player.baseStats[key] += value;
+                        } else {
+                            this.player[key] = (this.player[key] || 0) + value;
+                        }
+                    }
+                }
+                
+                // 重新计算属性
+                this.recalculateStats();
+                
+                // 关闭模态框
+                document.getElementById('talent-modal').classList.remove('active');
+                this.gameState = 'playing';
+            }
+            
+            recalculateStats() {
+                // 确保所有基础属性都是有效数字
+                let totalAttack = (typeof this.player.baseStats.attack === 'number' && !isNaN(this.player.baseStats.attack)) ? this.player.baseStats.attack : 20;
+                let totalDefense = (typeof this.player.baseStats.defense === 'number' && !isNaN(this.player.baseStats.defense)) ? this.player.baseStats.defense : 5;
+                let totalSpeed = (typeof this.player.baseStats.speed === 'number' && !isNaN(this.player.baseStats.speed)) ? this.player.baseStats.speed : 250;
+                let totalCriticalRate = (typeof this.player.baseStats.criticalRate === 'number' && !isNaN(this.player.baseStats.criticalRate)) ? this.player.baseStats.criticalRate : 0.1;
+                let totalCriticalMultiplier = (typeof this.player.baseStats.criticalMultiplier === 'number' && !isNaN(this.player.baseStats.criticalMultiplier)) ? this.player.baseStats.criticalMultiplier : 1.5;
+                let totalAttackSpeed = (typeof this.player.baseStats.attackSpeed === 'number' && !isNaN(this.player.baseStats.attackSpeed)) ? this.player.baseStats.attackSpeed : 1;
+                let totalLifeSteal = (typeof this.player.baseStats.lifeSteal === 'number' && !isNaN(this.player.baseStats.lifeSteal)) ? this.player.baseStats.lifeSteal : 0;
+                let totalHealingBonus = (typeof this.player.baseStats.healingBonus === 'number' && !isNaN(this.player.baseStats.healingBonus)) ? this.player.baseStats.healingBonus : 0;
+                
+                // 应用装备加成
+                for (const [slot, equipment] of Object.entries(this.player.equipment)) {
+                    if (equipment) {
+                        if (equipment.attack) totalAttack += equipment.attack;
+                        if (equipment.defense) totalDefense += equipment.defense;
+                        if (equipment.hp) this.player.maxHp += equipment.hp;
+                        if (equipment.speed) totalSpeed += equipment.speed;
+                        if (equipment.criticalRate) totalCriticalRate += equipment.criticalRate;
+                        if (equipment.criticalMultiplier) totalCriticalMultiplier += equipment.criticalMultiplier;
+                        if (equipment.attackSpeed) totalAttackSpeed += equipment.attackSpeed;
+                        if (equipment.lifeSteal) totalLifeSteal += equipment.lifeSteal;
+                        if (equipment.damageMultiplier) totalAttack *= (1 + equipment.damageMultiplier);
+                    }
+                }
+                
+                // 应用技能加成
+                if (this.player.skills.skill4.active) {
+                    totalAttack *= 1.5;
+                }
+                
+                // 更新玩家属性
+                this.player.attack = totalAttack;
+                this.player.defense = totalDefense;
+                this.player.speed = totalSpeed;
+                this.player.criticalRate = Math.max(0, Math.min(1, totalCriticalRate));
+                this.player.criticalMultiplier = totalCriticalMultiplier;
+                this.player.attackSpeed = totalAttackSpeed;
+                this.player.lifeSteal = totalLifeSteal;
+                this.player.healingBonus = totalHealingBonus;
+            }
+            
+            updateEnemies(deltaTime) {
+                this.enemies.forEach(enemy => {
+                    // 计算到玩家的距离
+                    const dx = this.player.x - enemy.x;
+                    const dy = this.player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // 更新动画
+                    enemy.animationFrame += deltaTime * 8;
+                    
+                    // AI行为
+                    if (distance < enemy.aggroRange) {
+                        // 追逐玩家
+                        enemy.animationState = 'run';
+                        const moveX = dx / distance;
+                        const moveY = dy / distance;
+                        
+                        enemy.x += moveX * enemy.speed * deltaTime;
+                        enemy.y += moveY * enemy.speed * deltaTime;
+                        
+                        // 攻击玩家
+                        if (distance < enemy.attackRange) {
+                            this.enemyAttack(enemy);
+                        }
+                    } else {
+                        enemy.animationState = 'idle';
+                    }
+                    
+                    // 简单的碰撞避免
+                    this.enemies.forEach(other => {
+                        if (other === enemy) return;
+                        
+                        const odx = other.x - enemy.x;
+                        const ody = other.y - enemy.y;
+                        const odistance = Math.sqrt(odx * odx + ody * ody);
+                        
+                        if (odistance < enemy.size + other.size) {
+                            const pushX = odx / odistance;
+                            const pushY = ody / odistance;
+                            
+                            enemy.x -= pushX * 50 * deltaTime;
+                            enemy.y -= pushY * 50 * deltaTime;
+                        }
+                    });
+                });
+            }
+            
+            enemyAttack(enemy) {
+                const now = Date.now() / 1000;
+                if (now - enemy.lastAttackTime < enemy.attackCooldown) return;
+                
+                enemy.lastAttackTime = now;
+                enemy.animationState = 'attack';
+                enemy.isAttacking = true;
+                
+                setTimeout(() => {
+                    enemy.isAttacking = false;
+                }, 500);
+                
+                // 计算伤害，确保数值有效
+                const enemyAttack = (typeof enemy.attack === 'number' && !isNaN(enemy.attack)) ? enemy.attack : 10;
+                const playerDefense = (typeof this.player.defense === 'number' && !isNaN(this.player.defense)) ? this.player.defense : 0;
+                let damage = Math.max(1, enemyAttack - playerDefense);
+                
+                // 应用伤害
+                this.player.hp -= damage;
+                
+                // 显示伤害数字
+                this.showDamageNumber(this.player.x, this.player.y, Math.round(damage), 'enemy');
+                
+                // 危险警告
+                if (this.player.hp < this.player.maxHp * 0.3) {
+                    this.showDangerWarning();
+                }
+                
+                // 检查游戏结束
+                if (this.player.hp <= 0) {
+                    this.gameOver();
+                }
+            }
+            
+            showDangerWarning() {
+                const warning = document.createElement('div');
+                warning.className = 'danger-warning';
+                warning.textContent = '警告！生命值过低！';
+                document.body.appendChild(warning);
+                
+                setTimeout(() => {
+                    warning.remove();
+                }, 2000);
+            }
+            
+            updateProjectiles(deltaTime) {
+                this.projectiles = this.projectiles.filter(projectile => {
+                    projectile.x += projectile.vx * deltaTime;
+                    projectile.y += projectile.vy * deltaTime;
+                    projectile.lifetime -= deltaTime;
+                    
+                    // 检查碰撞
+                    if (projectile.friendly) {
+                        for (let i = this.enemies.length - 1; i >= 0; i--) {
+                            const enemy = this.enemies[i];
+                            const dx = enemy.x - projectile.x;
+                            const dy = enemy.y - projectile.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (distance < projectile.radius + enemy.size) {
+                                this.dealDamageToEnemy(enemy, projectile.damage, true);
+                                return false;
+                            }
+                        }
+                    }
+                    
+                    return projectile.lifetime > 0 &&
+                           projectile.x > 0 && projectile.x < this.mapWidth &&
+                           projectile.y > 0 && projectile.y < this.mapHeight;
+                });
+            }
+            
+            updateDamageNumbers(deltaTime) {
+                this.damageNumbers = this.damageNumbers.filter(damageNum => {
+                    damageNum.time += deltaTime;
+                    damageNum.y -= 50 * deltaTime;
+                    damageNum.opacity = Math.max(0, 1 - damageNum.time);
+                    
+                    return damageNum.time < 1;
+                });
+            }
+            
+            updateSkillCooldowns(deltaTime) {
+                for (const skillId in this.player.skills) {
+                    const skill = this.player.skills[skillId];
+                    if (skill.currentCooldown > 0) {
+                        skill.currentCooldown -= deltaTime;
+                        if (skill.currentCooldown < 0) {
+                            skill.currentCooldown = 0;
+                        }
+                    }
+                }
+            }
+            
+            showDamageNumber(x, y, damage, type) {
+                const colors = {
+                    player: '#ff4444',
+                    critical: '#ff8800',
+                    enemy: '#44ff44',
+                    heal: '#44ffff'
+                };
+                
+                // 确保 damage 是有效数字，防止 NaN 显示
+                const damageNum = (typeof damage === 'number' && !isNaN(damage)) ? Math.round(damage) : 0;
+                
+                this.damageNumbers.push({
+                    x: x,
+                    y: y - 20,
+                    damage: damageNum,
+                    color: colors[type] || '#ffffff',
+                    type: type,
+                    time: 0,
+                    opacity: 1,
+                    fontSize: type === 'critical' ? 32 : (type === 'heal' ? 20 : 24)
+                });
+            }
+            
+            createDeathEffect(x, y, color) {
+                // 简单的死亡效果
+                for (let i = 0; i < 20; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 200 + 100;
+                    
+                    this.damageNumbers.push({
+                        x: x,
+                        y: y,
+                        damage: '',
+                        color: color,
+                        type: 'particle',
+                        time: 0,
+                        opacity: 1,
+                        fontSize: 8,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed
+                    });
+                }
+            }
+            
+            checkLevelComplete() {
+                if (this.enemies.length === 0 && !this.isTransitioning) {
+                    // 标记正在过渡到下一关
+                    this.isTransitioning = true;
+                    
+                    // 显示下一层提示
+                    this.showNextLevelNotification();
+                    
+                    // 延迟进入下一层，给玩家时间看到提示
+                    setTimeout(() => {
+                        this.floorNumber++;
+                        this.highestFloor = Math.max(this.highestFloor, this.floorNumber);
+                        this.generateEnemies();
+                        this.isTransitioning = false;
+                    }, 2000);
+                }
+            }
+            
+            showNextLevelNotification() {
+                const notification = document.createElement('div');
+                notification.style.position = 'fixed';
+                notification.style.top = '50%';
+                notification.style.left = '50%';
+                notification.style.transform = 'translate(-50%, -50%)';
+                notification.style.background = 'rgba(0, 0, 0, 0.9)';
+                notification.style.border = '3px solid #ffd700';
+                notification.style.borderRadius = '20px';
+                notification.style.padding = '30px 50px';
+                notification.style.color = '#ffd700';
+                notification.style.fontSize = '32px';
+                notification.style.fontWeight = 'bold';
+                notification.style.zIndex = '2000';
+                notification.style.animation = 'lootAppear 0.5s ease';
+                notification.textContent = `进入第 ${this.floorNumber + 1} 层！`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 2000);
+            }
+            
+            gameOver() {
+                this.gameState = 'game_over';
+                
+                document.getElementById('final-floor').textContent = this.highestFloor;
+                document.getElementById('final-kills').textContent = this.enemyKillCount;
+                document.getElementById('final-gold').textContent = this.player.gold;
+                document.getElementById('final-time').textContent = this.formatTime(this.elapsedTime);
+                
+                document.getElementById('game-over').classList.add('active');
+            }
+            
+            restartGame() {
+                // 重置游戏状态
+                this.gameState = 'playing';
+                this.floorNumber = 1;
+                this.enemyKillCount = 0;
+                this.elapsedTime = 0;
+                this.gameStartTime = Date.now();
+                
+                // 重置玩家
+                this.player = {
+                    x: this.mapWidth / 2,
+                    y: this.mapHeight / 2,
+                    width: 40,
+                    height: 40,
+                    vx: 0,
+                    vy: 0,
+                    speed: 250,
+                    maxSpeed: 250,
+                    hp: 100,
+                    maxHp: 100,
+                    exp: 0,
+                    expToLevel: 100,
+                    level: 1,
+                    attack: 20,
+                    defense: 5,
+                    criticalRate: 0.1,
+                    criticalMultiplier: 1.5,
+                    attackSpeed: 1,
+                    gold: 0,
+                    talents: [],
+                    inventory: [],
+                    skills: {
+                        skill1: { name: '烈焰斩', damage: 30, cooldown: 2, currentCooldown: 0, icon: '🔥' },
+                        skill2: { name: '闪电突', damage: 25, cooldown: 3, currentCooldown: 0, icon: '⚡' },
+                        skill3: { name: '治疗术', healing: 40, cooldown: 5, currentCooldown: 0, icon: '💚' },
+                        skill4: { name: '狂暴', buff: 1.5, duration: 5, cooldown: 10, currentCooldown: 0, icon: '🌟', active: false }
+                    },
+                    equipment: {
+                        weapon: null,
+                        armor: null,
+                        helmet: null,
+                        necklace: null,
+                        ring: null,
+                        boots: null
+                    },
+                    baseStats: {
+                        attack: 20,
+                        defense: 5,
+                        speed: 250,
+                        criticalRate: 0.1
+                    },
+                    animationFrame: 0,
+                    animationState: 'idle',
+                    facingRight: true,
+                    lastAttackTime: 0,
+                    attackAnimationTime: 0.3
+                };
+                
+                // 重置投射物和敌人
+                this.projectiles = [];
+                this.damageNumbers = [];
+                this.enemies = [];
+                
+                // 生成敌人
+                this.generateEnemies();
+                
+                // 隐藏游戏结束屏幕
+                document.getElementById('game-over').classList.remove('active');
+                
+                // 更新UI
+                this.updateUI();
+            }
+            
+            formatTime(ms) {
+                const seconds = Math.floor(ms / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+            }
+            
+            updateUI() {
+                // 更新玩家信息
+                document.getElementById('player-level').textContent = this.player.level;
+                const currentHp = Math.floor(this.player.hp);
+                const maxHp = this.player.maxHp;
+                document.getElementById('current-hp').textContent = currentHp;
+                document.getElementById('max-hp').textContent = maxHp;
+                document.getElementById('hp-detailed').textContent = `${currentHp} / ${maxHp}`;
+                document.getElementById('hp-fill').style.width = (this.player.hp / this.player.maxHp * 100) + '%';
+                document.getElementById('current-exp').textContent = Math.floor(this.player.exp);
+                document.getElementById('max-exp').textContent = this.player.expToLevel;
+                document.getElementById('exp-fill').style.width = (this.player.exp / this.player.expToLevel * 100) + '%';
+                document.getElementById('player-atk').textContent = Math.floor(this.player.attack);
+                document.getElementById('player-def').textContent = Math.floor(this.player.defense);
+                document.getElementById('player-spd').textContent = Math.floor(this.player.speed);
+                document.getElementById('player-gold').textContent = this.player.gold;
+                
+                // 更新地图信息
+                document.getElementById('floor-number').textContent = this.floorNumber;
+                document.getElementById('kill-count').textContent = this.enemyKillCount;
+                document.getElementById('time-elapsed').textContent = this.formatTime(this.elapsedTime);
+                document.getElementById('highest-floor').textContent = this.highestFloor;
+                
+                // 更新装备槽
+                for (const [slot, equipment] of Object.entries(this.player.equipment)) {
+                    const slotElement = document.getElementById(slot + '-slot');
+                    const iconElement = slotElement.querySelector('.equipment-icon');
+                    
+                    if (equipment) {
+                        iconElement.textContent = equipment.icon;
+                        slotElement.classList.add('equipped');
+                    } else {
+                        const defaultIcons = {
+                            weapon: '🗡️',
+                            armor: '🛡️',
+                            helmet: '👑',
+                            necklace: '📿',
+                            ring: '💍',
+                            boots: '👢'
+                        };
+                        iconElement.textContent = defaultIcons[slot];
+                        slotElement.classList.remove('equipped');
+                    }
+                }
+                
+                // 更新技能冷却
+                for (let i = 1; i <= 4; i++) {
+                    const skillElement = document.getElementById('skill-' + i);
+                    const skill = this.player.skills['skill' + i];
+                    
+                    if (skill.currentCooldown > 0) {
+                        skillElement.classList.add('on-cooldown');
+                    } else {
+                        skillElement.classList.remove('on-cooldown');
+                    }
+                }
+            }
+            
+            render() {
+                // 清空画布
+                this.ctx.fillStyle = '#0a0a1a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 计算摄像机位置
+                this.camera = {
+                    x: this.player.x - this.canvas.width / 2,
+                    y: this.player.y - this.canvas.height / 2
+                };
+                
+                // 绘制地图背景
+                this.renderMap();
+                
+                // 绘制敌人
+                this.renderEnemies();
+                
+                // 绘制玩家
+                this.renderPlayer();
+                
+                // 绘制投射物
+                this.renderProjectiles();
+                
+                // 绘制伤害数字
+                this.renderDamageNumbers();
+                
+                // 绘制小地图
+                this.renderMinimap();
+            }
+            
+            renderMap() {
+                const gridSize = 50;
+                const startCol = Math.floor(this.camera.x / gridSize);
+                const endCol = Math.ceil((this.camera.x + this.canvas.width) / gridSize);
+                const startRow = Math.floor(this.camera.y / gridSize);
+                const endRow = Math.ceil((this.camera.y + this.canvas.height) / gridSize);
+                
+                for (let col = startCol; col <= endCol; col++) {
+                    for (let row = startRow; row <= endRow; row++) {
+                        const x = col * gridSize - this.camera.x;
+                        const y = row * gridSize - this.camera.y;
+                        
+                        // 创建网格图案
+                        const isEven = (col + row) % 2 === 0;
+                        this.ctx.fillStyle = isEven ? '#1a1a2e' : '#151525';
+                        this.ctx.fillRect(x, y, gridSize + 1, gridSize + 1);
+                        
+                        // 绘制网格线
+                        this.ctx.strokeStyle = '#2a2a4e';
+                        this.ctx.lineWidth = 1;
+                        this.ctx.strokeRect(x, y, gridSize, gridSize);
+                    }
+                }
+                
+                // 绘制地图边界
+                const boundaryWidth = 8;
+                this.ctx.strokeStyle = '#ffd700';
+                this.ctx.lineWidth = boundaryWidth;
+                this.ctx.shadowColor = '#ffd700';
+                this.ctx.shadowBlur = 15;
+                
+                // 上边界
+                this.ctx.strokeRect(-this.camera.x - boundaryWidth, -this.camera.y - boundaryWidth, 
+                                   this.mapWidth + 2 * boundaryWidth, boundaryWidth);
+                // 下边界
+                this.ctx.strokeRect(-this.camera.x - boundaryWidth, this.mapHeight - this.camera.y, 
+                                   this.mapWidth + 2 * boundaryWidth, boundaryWidth);
+                // 左边界
+                this.ctx.strokeRect(-this.camera.x - boundaryWidth, -this.camera.y - boundaryWidth, 
+                                   boundaryWidth, this.mapHeight + 2 * boundaryWidth);
+                // 右边界
+                this.ctx.strokeRect(this.mapWidth - this.camera.x, -this.camera.y - boundaryWidth, 
+                                   boundaryWidth, this.mapHeight + 2 * boundaryWidth);
+                
+                this.ctx.shadowBlur = 0;
+            }
+            
+            renderPlayer() {
+                const x = this.player.x - this.camera.x;
+                const y = this.player.y - this.camera.y;
+                
+                // 绘制玩家阴影
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                this.ctx.beginPath();
+                this.ctx.ellipse(x, y + 20, 20, 10, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 绘制玩家
+                this.ctx.save();
+                this.ctx.translate(x, y);
+                
+                // 根据动画状态调整
+                const bounce = this.player.animationState === 'run' ? Math.sin(this.player.animationFrame) * 3 : 0;
+                const scaleX = this.player.facingRight ? 1 : -1;
+                
+                this.ctx.scale(scaleX, 1);
+                this.ctx.translate(0, bounce);
+                
+                // 身体
+                this.ctx.fillStyle = '#4488ff';
+                this.ctx.fillRect(-15, -25, 30, 50);
+                
+                // 头部
+                this.ctx.fillStyle = '#ffcc99';
+                this.ctx.beginPath();
+                this.ctx.arc(0, -35, 15, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 眼睛
+                this.ctx.fillStyle = '#000';
+                this.ctx.beginPath();
+                this.ctx.arc(5, -37, 2, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 手臂
+                this.ctx.fillStyle = '#4488ff';
+                if (this.player.animationState === 'attack') {
+                    // 攻击动画
+                    this.ctx.save();
+                    this.ctx.rotate(Math.PI / 4);
+                    this.ctx.fillRect(15, -20, 25, 8);
+                    this.ctx.restore();
+                    
+                    // 武器
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.fillRect(35, -25, 8, 30);
+                } else {
+                    // 正常状态
+                    const armSwing = this.player.animationState === 'run' ? Math.sin(this.player.animationFrame) * 0.3 : 0;
+                    this.ctx.save();
+                    this.ctx.rotate(armSwing);
+                    this.ctx.fillRect(15, -20, 8, 25);
+                    this.ctx.restore();
+                    
+                    this.ctx.save();
+                    this.ctx.rotate(-armSwing);
+                    this.ctx.fillRect(-23, -20, 8, 25);
+                    this.ctx.restore();
+                }
+                
+                // 腿
+                if (this.player.animationState === 'run') {
+                    const legSwing = Math.sin(this.player.animationFrame) * 0.5;
+                    this.ctx.save();
+                    this.ctx.rotate(legSwing);
+                    this.ctx.fillRect(-10, 25, 8, 20);
+                    this.ctx.restore();
+                    
+                    this.ctx.save();
+                    this.ctx.rotate(-legSwing);
+                    this.ctx.fillRect(2, 25, 8, 20);
+                    this.ctx.restore();
+                } else {
+                    this.ctx.fillRect(-10, 25, 8, 20);
+                    this.ctx.fillRect(2, 25, 8, 20);
+                }
+                
+                this.ctx.restore();
+                
+                // 绘制玩家血条
+                this.renderHealthBar(x, y - 55, this.player.hp, this.player.maxHp, '#ff4444');
+                
+                // 绘制玩家名字
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 14px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(`Lv.${this.player.level}`, x, y - 65);
+            }
+            
+            renderEnemies() {
+                this.enemies.forEach(enemy => {
+                    const x = enemy.x - this.camera.x;
+                    const y = enemy.y - this.camera.y;
+                    
+                    // 只绘制视野内的敌人
+                    if (x < -50 || x > this.canvas.width + 50 || y < -50 || y > this.canvas.height + 50) {
+                        return;
+                    }
+                    
+                    // 绘制敌人阴影
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(x, y + enemy.size / 2, enemy.size * 0.8, enemy.size * 0.3, 0, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // 绘制敌人
+                    this.ctx.save();
+                    this.ctx.translate(x, y);
+                    
+                    // 攻击动画效果
+                    if (enemy.isAttacking) {
+                        this.ctx.shadowColor = '#ff0000';
+                        this.ctx.shadowBlur = 20;
+                    }
+                    
+                    // 身体
+                    this.ctx.fillStyle = enemy.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, enemy.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // 表情
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = `${enemy.size * 0.8}px Arial`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(enemy.icon, 0, 0);
+                    
+                    // 聚焦光环
+                    if (enemy.animationState === 'run') {
+                        this.ctx.strokeStyle = '#ff0000';
+                        this.ctx.lineWidth = 2;
+                        this.ctx.beginPath();
+                        this.ctx.arc(0, 0, enemy.size + 5, 0, Math.PI * 2);
+                        this.ctx.stroke();
+                    }
+                    
+                    this.ctx.restore();
+                    
+                    // 绘制血条 - 实时显示血量变化
+                    const hpPercentage = Math.max(0, enemy.hp / enemy.maxHp);
+                    const barWidth = enemy.size * 2;
+                    const barHeight = 6;
+                    const barY = y - enemy.size - 15;
+                    
+                    // 血条背景
+                    this.ctx.fillStyle = '#333';
+                    this.ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
+                    
+                    // 血条填充 - 根据血量百分比变化颜色
+                    if (hpPercentage > 0.6) {
+                        this.ctx.fillStyle = '#00ff00';
+                    } else if (hpPercentage > 0.3) {
+                        this.ctx.fillStyle = '#ffff00';
+                    } else {
+                        this.ctx.fillStyle = '#ff0000';
+                    }
+                    
+                    this.ctx.fillRect(x - barWidth / 2, barY, barWidth * hpPercentage, barHeight);
+                    
+                    // 血条边框
+                    this.ctx.strokeStyle = '#666';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.strokeRect(x - barWidth / 2, barY, barWidth, barHeight);
+                    
+                    // Boss名字
+                    if (enemy.isBoss) {
+                        this.ctx.fillStyle = '#ff00ff';
+                        this.ctx.font = 'bold 16px Arial';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText('BOSS', x, y - enemy.size - 25);
+                    }
+                    
+                    // 显示血量数值
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = 'bold 10px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(`${Math.floor(enemy.hp)}/${Math.floor(enemy.maxHp)}`, x, barY - 3);
+                });
+            }
+            
+            renderHealthBar(x, y, current, max, color) {
+                const width = 60;
+                const height = 8;
+                const border = 2;
+                
+                // 背景
+                this.ctx.fillStyle = '#333';
+                this.ctx.fillRect(x - width / 2, y, width, height);
+                
+                // 血条
+                this.ctx.fillStyle = color;
+                this.ctx.fillRect(x - width / 2 + border, y + border, width - 2 * border, height - 2 * border);
+                
+                // 边框
+                this.ctx.strokeStyle = '#666';
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(x - width / 2, y, width, height);
+            }
+            
+            renderProjectiles() {
+                this.projectiles.forEach(projectile => {
+                    const x = projectile.x - this.camera.x;
+                    const y = projectile.y - this.camera.y;
+                    
+                    this.ctx.save();
+                    this.ctx.translate(x, y);
+                    
+                    // 发光效果
+                    this.ctx.shadowColor = projectile.color;
+                    this.ctx.shadowBlur = 10;
+                    
+                    // 投射物
+                    this.ctx.fillStyle = projectile.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, projectile.radius, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                });
+            }
+            
+            renderDamageNumbers() {
+                this.damageNumbers.forEach(damageNum => {
+                    const x = damageNum.x - this.camera.x;
+                    const y = damageNum.y - this.camera.y;
+                    
+                    this.ctx.save();
+                    this.ctx.globalAlpha = damageNum.opacity;
+                    this.ctx.fillStyle = damageNum.color;
+                    this.ctx.font = `bold ${damageNum.fontSize}px Arial`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.strokeStyle = '#000';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.strokeText(damageNum.damage, x, y);
+                    this.ctx.fillText(damageNum.damage, x, y);
+                    this.ctx.restore();
+                });
+            }
+            
+            renderMinimap() {
+                // 清空小地图
+                this.minimapCtx.fillStyle = '#000';
+                this.minimapCtx.fillRect(0, 0, 150, 150);
+                
+                // 计算缩放比例
+                const scaleX = 150 / this.mapWidth;
+                const scaleY = 150 / this.mapHeight;
+                
+                // 绘制敌人
+                this.enemies.forEach(enemy => {
+                    this.minimapCtx.fillStyle = '#ff4444';
+                    this.minimapCtx.fillRect(
+                        enemy.x * scaleX - 2,
+                        enemy.y * scaleY - 2,
+                        4, 4
+                    );
+                });
+                
+                // 绘制玩家
+                this.minimapCtx.fillStyle = '#00ff00';
+                this.minimapCtx.fillRect(
+                    this.player.x * scaleX - 3,
+                    this.player.y * scaleY - 3,
+                    6, 6
+                );
+                
+                // 绘制玩家视野
+                this.minimapCtx.strokeStyle = '#00ff00';
+                this.minimapCtx.lineWidth = 1;
+                this.minimapCtx.strokeRect(
+                    this.camera.x * scaleX,
+                    this.camera.y * scaleY,
+                    this.canvas.width * scaleX,
+                    this.canvas.height * scaleY
+                );
+            }
+            
+            gameLoop(currentTime = 0) {
+                this.deltaTime = (currentTime - this.lastTime) / 1000;
+                this.lastTime = currentTime;
+                
+                // 限制deltaTime，避免帧率过低时出现问题
+                if (this.deltaTime > 0.1) this.deltaTime = 0.1;
+                
+                this.update(this.deltaTime);
+                this.render();
+                
+                requestAnimationFrame((time) => this.gameLoop(time));
+            }
+            
+            // 装备系统相关方法
+            showEquipmentTooltip(slotName, x, y) {
+                const tooltip = document.getElementById('equipment-tooltip');
+                const equipment = this.player.equipment[slotName];
+                
+                if (!equipment) {
+                    this.hideEquipmentTooltip();
+                    return;
+                }
+                
+                document.getElementById('tooltip-title').textContent = equipment.name;
+                
+                const rarityElement = document.getElementById('tooltip-rarity');
+                rarityElement.textContent = this.getRarityText(equipment.rarity);
+                rarityElement.style.background = this.getRarityColor(equipment.rarity);
+                
+                // 显示属性
+                let statsHtml = '';
+                for (const [key, value] of Object.entries(equipment)) {
+                    if (key !== 'name' && key !== 'icon' && key !== 'rarity' && typeof value === 'number') {
+                        const statName = {
+                            attack: '攻击力',
+                            defense: '防御力',
+                            hp: '生命值',
+                            maxHp: '最大生命值',
+                            speed: '移动速度',
+                            criticalRate: '暴击率',
+                            criticalMultiplier: '暴击伤害',
+                            lifeSteal: '生命偷取',
+                            attackSpeed: '攻击速度',
+                            damageMultiplier: '伤害加成',
+                            healingBonus: '治疗效果'
+                        }[key] || key;
+                        
+                        const displayValue = ['criticalRate', 'criticalMultiplier', 'lifeSteal', 'attackSpeed', 'damageMultiplier', 'healingBonus'].includes(key) 
+                            ? (value * 100).toFixed(0) + '%' 
+                            : value;
+                        
+                        statsHtml += `<div class="stat-line">${statName}: <span class="stat-value">+${displayValue}</span></div>`;
+                    }
+                }
+                
+                document.getElementById('tooltip-stats').innerHTML = statsHtml;
+                
+                // 显示操作按钮
+                const actionsHtml = `
+                    <button class="tooltip-btn btn-unequip" onclick="window.game.unequipItem('${slotName}')">卸下</button>
+                    <button class="tooltip-btn btn-sell" onclick="window.game.sellItem('${slotName}')">出售 (${Math.floor(this.calculateItemValue(equipment))}G)</button>
+                `;
+                document.getElementById('tooltip-actions').innerHTML = actionsHtml;
+                
+                // 定位提示框
+                tooltip.style.left = Math.min(x, window.innerWidth - 250) + 'px';
+                tooltip.style.top = Math.min(y, window.innerHeight - 300) + 'px';
+                tooltip.style.display = 'block';
+            }
+            
+            hideEquipmentTooltip() {
+                document.getElementById('equipment-tooltip').style.display = 'none';
+            }
+            
+            unequipItem(slotName) {
+                const equipment = this.player.equipment[slotName];
+                if (equipment) {
+                    // 添加到仓库
+                    this.player.inventory.push({...equipment, id: Date.now()});
+                    // 卸下装备
+                    this.player.equipment[slotName] = null;
+                    // 重新计算属性
+                    this.recalculateStats();
+                    // 更新UI
+                    this.updateUI();
+                    // 隐藏提示框
+                    this.hideEquipmentTooltip();
+                }
+            }
+            
+            equipItemFromInventory(item, slotName) {
+                if (item) {
+                    // 装备物品
+                    this.player.equipment[slotName] = item;
+                    // 从仓库移除
+                    const index = this.player.inventory.indexOf(item);
+                    if (index > -1) {
+                        this.player.inventory.splice(index, 1);
+                    }
+                    // 重新计算属性
+                    this.recalculateStats();
+                    // 更新UI
+                    this.updateUI();
+                }
+            }
+            
+            sellItem(slotName) {
+                const equipment = this.player.equipment[slotName];
+                if (equipment) {
+                    // 获得金币
+                    const value = this.calculateItemValue(equipment);
+                    this.player.gold += value;
+                    // 移除装备
+                    this.player.equipment[slotName] = null;
+                    // 重新计算属性
+                    this.recalculateStats();
+                    // 更新UI
+                    this.updateUI();
+                    // 隐藏提示框
+                    this.hideEquipmentTooltip();
+                }
+            }
+            
+            calculateItemValue(item) {
+                const baseValues = {
+                    common: 10,
+                    uncommon: 25,
+                    rare: 50,
+                    epic: 100,
+                    legendary: 200
+                };
+                return Math.floor(baseValues[item.rarity] || 10);
+            }
+            
+            getRarityText(rarity) {
+                const texts = {
+                    common: '普通',
+                    uncommon: '优秀',
+                    rare: '稀有',
+                    epic: '史诗',
+                    legendary: '传说'
+                };
+                return texts[rarity] || rarity;
+            }
+            
+            // 仓库系统
+            toggleInventory() {
+                const modal = document.getElementById('inventory-modal');
+                if (modal.classList.contains('active')) {
+                    this.closeInventory();
+                } else {
+                    this.openInventory();
+                }
+            }
+            
+            openInventory() {
+                const modal = document.getElementById('inventory-modal');
+                const grid = document.getElementById('inventory-grid');
+                
+                grid.innerHTML = '';
+                
+                if (this.player.inventory.length === 0) {
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 50px;">仓库为空</div>';
+                } else {
+                    this.player.inventory.forEach((item, index) => {
+                        const slot = document.createElement('div');
+                        slot.className = 'inventory-slot';
+                        slot.style.borderColor = this.getRarityColor(item.rarity);
+                        slot.innerHTML = `
+                            ${item.icon}
+                        `;
+                        slot.onclick = () => this.showInventoryItemDetails(item, index);
+                        grid.appendChild(slot);
+                    });
+                }
+                
+                modal.classList.add('active');
+            }
+            
+            closeInventory() {
+                document.getElementById('inventory-modal').classList.remove('active');
+            }
+            
+            showInventoryItemDetails(item, index) {
+                const tooltip = document.getElementById('equipment-tooltip');
+                
+                document.getElementById('tooltip-title').textContent = item.name;
+                
+                const rarityElement = document.getElementById('tooltip-rarity');
+                rarityElement.textContent = this.getRarityText(item.rarity);
+                rarityElement.style.background = this.getRarityColor(item.rarity);
+                
+                // 显示属性
+                let statsHtml = '';
+                for (const [key, value] of Object.entries(item)) {
+                    if (key !== 'name' && key !== 'icon' && key !== 'rarity' && typeof value === 'number') {
+                        const statName = {
+                            attack: '攻击力',
+                            defense: '防御力',
+                            hp: '生命值',
+                            maxHp: '最大生命值',
+                            speed: '移动速度',
+                            criticalRate: '暴击率',
+                            criticalMultiplier: '暴击伤害',
+                            lifeSteal: '生命偷取',
+                            attackSpeed: '攻击速度',
+                            damageMultiplier: '伤害加成',
+                            healingBonus: '治疗效果'
+                        }[key] || key;
+                        
+                        const displayValue = ['criticalRate', 'criticalMultiplier', 'lifeSteal', 'attackSpeed', 'damageMultiplier', 'healingBonus'].includes(key) 
+                            ? (value * 100).toFixed(0) + '%' 
+                            : value;
+                        
+                        statsHtml += `<div class="stat-line">${statName}: <span class="stat-value">+${displayValue}</span></div>`;
+                    }
+                }
+                
+                document.getElementById('tooltip-stats').innerHTML = statsHtml;
+                
+                // 显示操作按钮
+                const slotType = this.getItemSlotType(item);
+                const canEquip = !this.player.equipment[slotType];
+                
+                let actionsHtml = '';
+                if (canEquip) {
+                    actionsHtml += `<button class="tooltip-btn btn-equip" onclick="window.game.equipItem(${index})">装备</button>`;
+                } else {
+                    actionsHtml += `<button class="tooltip-btn btn-unequip" onclick="window.game.replaceEquipment(${index})">替换</button>`;
+                }
+                actionsHtml += `<button class="tooltip-btn btn-sell" onclick="window.game.sellInventoryItem(${index})">出售 (${Math.floor(this.calculateItemValue(item))}G)</button>`;
+                
+                document.getElementById('tooltip-actions').innerHTML = actionsHtml;
+                
+                // 定位提示框
+                const rect = event.target.getBoundingClientRect();
+                tooltip.style.left = Math.min(rect.left, window.innerWidth - 250) + 'px';
+                tooltip.style.top = Math.min(rect.top, window.innerHeight - 300) + 'px';
+                tooltip.style.display = 'block';
+            }
+            
+            getItemSlotType(item) {
+                const slotMap = {
+                    weapons: 'weapon',
+                    armors: 'armor',
+                    helmets: 'helmet',
+                    necklaces: 'necklace',
+                    rings: 'ring',
+                    boots: 'boots'
+                };
+                
+                for (const [category, slot] of Object.entries(slotMap)) {
+                    if (this.equipmentDatabase[category]) {
+                        // 检查装备名称是否在数据库中
+                        const isInDatabase = this.equipmentDatabase[category].some(dbItem => 
+                            dbItem.name === item.name
+                        );
+                        if (isInDatabase) {
+                            return slot;
+                        }
+                    }
+                }
+                
+                // 根据装备名称判断
+                if (item.name.includes('剑') || item.name.includes('刀') || item.name.includes('斧')) return 'weapon';
+                if (item.name.includes('甲') || item.name.includes('衣') || item.name.includes('袍')) return 'armor';
+                if (item.name.includes('帽') || item.name.includes('冠') || item.name.includes('盔')) return 'helmet';
+                if (item.name.includes('项链') || item.name.includes('项圈')) return 'necklace';
+                if (item.name.includes('戒指') || item.name.includes('指环')) return 'ring';
+                if (item.name.includes('鞋') || item.name.includes('靴') || item.name.includes('鞋')) return 'boots';
+                
+                return 'weapon'; // 默认
+            }
+            
+            equipItem(index) {
+                const item = this.player.inventory[index];
+                const slotType = this.getItemSlotType(item);
+                
+                // 装备物品
+                this.player.equipment[slotType] = item;
+                
+                // 从仓库移除
+                this.player.inventory.splice(index, 1);
+                
+                // 重新计算属性
+                this.recalculateStats();
+                
+                // 更新UI
+                this.updateUI();
+                this.openInventory(); // 刷新仓库显示
+                
+                // 隐藏提示框
+                this.hideEquipmentTooltip();
+            }
+            
+            replaceEquipment(index) {
+                const item = this.player.inventory[index];
+                const slotType = this.getItemSlotType(item);
+                const oldItem = this.player.equipment[slotType];
+                
+                // 将旧装备放回仓库
+                this.player.inventory.push({...oldItem, id: Date.now()});
+                
+                // 装备新物品
+                this.player.equipment[slotType] = item;
+                
+                // 从仓库移除新物品
+                this.player.inventory.splice(index, 1);
+                
+                // 重新计算属性
+                this.recalculateStats();
+                
+                // 更新UI
+                this.updateUI();
+                this.openInventory(); // 刷新仓库显示
+                
+                // 隐藏提示框
+                this.hideEquipmentTooltip();
+            }
+            
+            sellInventoryItem(index) {
+                const item = this.player.inventory[index];
+                const value = this.calculateItemValue(item);
+                
+                // 获得金币
+                this.player.gold += value;
+                
+                // 从仓库移除
+                this.player.inventory.splice(index, 1);
+                
+                // 更新UI
+                this.updateUI();
+                this.openInventory(); // 刷新仓库显示
+                
+                // 隐藏提示框
+                this.hideEquipmentTooltip();
+            }
+        }
+        
+        // 全局函数
+        function closeLootNotification() {
+            const notification = document.getElementById('loot-notification');
+            notification.classList.remove('active');
+        }
+        
+        function closeInventory() {
+            if (window.game) {
+                window.game.closeInventory();
+            }
+        }
+        
+        function restartGame() {
+            window.game.restartGame();
+        }
+        
+        // 启动游戏
+        window.onload = () => {
+            window.game = new RoguelikeGame();
+        };
+    </script>
+</body>
+</html>
